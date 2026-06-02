@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>나만의 사원증 만들기</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --mint: #00C2B3;
+  --mint-d: #009E91;
+  --mint-bg: #E6F9F8;
+  --black: #111;
+  --g1: #f7f7f7;
+  --g2: #e8e8e8;
+  --g3: #aaa;
+  --g4: #666;
+  --red: #FF4444;
+  --green: #00B894;
+  --text: #1a1a1a;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  background: #f0f0f0;
+  min-height: 100vh;
+  color: var(--text);
+}
+
+/* HEADER */
+header {
+  background: var(--black);
+  color: #fff;
+  text-align: center;
+  padding: 26px 20px 18px;
+}
+header h1 { font-size: 21px; font-weight: 800; letter-spacing: -0.3px; }
+header p  { font-size: 13px; color: #aaa; margin-top: 4px; }
+
+/* STEP BAR */
+.stepbar {
+  background: var(--black);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-bottom: 16px;
+  gap: 4px;
+}
+.step-item {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: #555;
+  padding: 6px 14px; border-radius: 20px;
+  transition: all .2s;
+}
+.step-item.active { background: var(--mint); color: #fff; }
+.step-num {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #444; color: #fff;
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.step-item.active .step-num { background: rgba(255,255,255,.3); }
+.step-div { color: #444; font-size: 12px; margin: 0 2px; }
+
+/* MAIN */
+main { max-width: 1100px; margin: 0 auto; padding: 28px 16px 60px; }
+
+/* STEP SECTIONS */
+.step { display: none; }
+.step.active { display: block; }
+
+/* COMMON BOX */
+.box {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px 20px;
+}
+.panel-title { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 14px; }
+
+/* GRIDS */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.three-col {
+  display: grid;
+  grid-template-columns: 260px 1fr 220px;
+  gap: 18px;
+  align-items: start;
+}
+@media(max-width:900px){ .three-col { grid-template-columns: 1fr 1fr; } }
+@media(max-width:640px){ .two-col, .three-col { grid-template-columns: 1fr; } }
+
+/* STEP 1 */
+.s1-title { font-size: 22px; font-weight: 800; line-height: 1.4; margin-bottom: 12px; }
+.s1-desc  { font-size: 14px; color: var(--g4); line-height: 1.7; margin-bottom: 22px; }
+.s1-cards { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.s1-cards img { height: 130px; border-radius: 10px; object-fit: contain; box-shadow: 0 4px 14px rgba(0,0,0,0.10); }
+.s1-notice { font-size: 11px; color: var(--g3); }
+.guide-img { width: 100%; border-radius: 10px; object-fit: contain; margin-bottom: 20px; max-height: 280px; background: var(--g1); }
+
+/* STEP 2 – LEFT */
+.upload-zone {
+  border: 2px dashed var(--g2); border-radius: 12px;
+  padding: 26px 14px; text-align: center; cursor: pointer;
+  margin-bottom: 12px; transition: border-color .2s, background .2s;
+}
+.upload-zone:hover { border-color: var(--mint); background: var(--mint-bg); }
+.upload-zone p { font-size: 12px; color: var(--g3); margin-top: 6px; }
+#file-input { display: none; }
+.field { margin-bottom: 11px; }
+.field label { font-size: 11px; font-weight: 600; color: var(--g4); display: block; margin-bottom: 4px; }
+.field input {
+  width: 100%; border: 1.5px solid var(--g2); border-radius: 8px;
+  padding: 9px 11px; font-size: 14px; outline: none; transition: border-color .2s;
+}
+.field input:focus { border-color: var(--mint); }
+.field input[readonly] { background: var(--g1); color: #555; cursor: default; }
+.s2-notice { font-size: 11px; color: var(--g3); line-height: 1.5; }
+.lookup-msg { font-size: 12px; text-align: center; margin: 10px 0 4px; min-height: 18px; }
+.lookup-error { color: var(--red); font-weight: 600; }
+.lookup-loading { color: var(--g4); }
+#lookup-result { margin-top: 4px; }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+
+/* STEP 2 – CENTER (canvas) */
+.canvas-panel {
+  display: flex; flex-direction: column; align-items: center;
+}
+.canvas-desc { font-size: 12px; color: var(--g4); text-align: center; margin-bottom: 12px; line-height: 1.5; }
+#card-canvas {
+  display: block;
+  width: 100%;
+  max-width: 596px;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+  cursor: grab;
+  touch-action: none;
+}
+#card-canvas:active { cursor: grabbing; }
+#face-status { font-size: 12px; margin-top: 8px; text-align: center; min-height: 20px; }
+.status-ok  { color: var(--green); }
+.status-warn { color: #E67E22; }
+.status-info { color: #2980B9; }
+.zoom-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 10px; width: 100%; max-width: 280px;
+}
+.zoom-row label { font-size: 11px; color: var(--g4); white-space: nowrap; }
+input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height: 4px; }
+.zoom-pct { font-size: 11px; color: #555; width: 34px; text-align: right; }
+.card-actions { display: flex; gap: 10px; margin-top: 10px; }
+.card-btn {
+  flex: 1; padding: 8px 14px; border: 1.5px solid var(--g2);
+  border-radius: 8px; background: #fff; font-size: 12px;
+  cursor: pointer; color: #444; font-weight: 500; transition: background .15s;
+}
+.card-btn:hover { background: var(--g1); }
+
+/* STEP 2 – RIGHT guide */
+.guide-block { margin-bottom: 16px; }
+.guide-block-title {
+  font-size: 11px; font-weight: 700; padding: 4px 10px;
+  border-radius: 6px; margin-bottom: 8px; display: inline-block;
+}
+.gb-ok  { background: #e8f8f6; color: var(--green); }
+.gb-bad { background: #ffe8e8; color: var(--red); }
+.guide-block ul { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.guide-block ul li { font-size: 12px; color: #555; padding-left: 12px; position: relative; line-height: 1.5; }
+.guide-block ul li::before { content: '·'; position: absolute; left: 0; color: var(--g3); }
+
+/* STEP 3 */
+.s3-title { font-size: 24px; font-weight: 800; text-align: center; margin-bottom: 24px; }
+#final-canvas {
+  display: block;
+  width: 100%;
+  max-width: 596px;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+}
+.info-row { display: flex; flex-direction: column; gap: 10px; }
+.info-item {
+  background: var(--g1); border-radius: 10px; padding: 11px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.info-label { font-size: 11px; color: var(--g3); }
+.info-value { font-size: 15px; font-weight: 700; }
+.checklist { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.checklist li { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #444; line-height: 1.5; }
+.check-icon {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--mint-bg); color: var(--mint);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+}
+.submit-area { margin-top: 24px; }
+
+/* BUTTONS */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: none; border-radius: 10px; font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: opacity .15s, transform .1s;
+}
+.btn:active { transform: scale(.98); }
+.btn-mint { background: var(--mint); color: #fff; padding: 13px 22px; }
+.btn-mint:hover { opacity: .88; }
+.btn-outline { background: #fff; color: #333; border: 1.5px solid var(--g2); padding: 11px 20px; }
+.btn-outline:hover { background: var(--g1); }
+.btn-full { width: 100%; }
+.btn-lg { font-size: 16px; padding: 16px; border-radius: 12px; }
+.nav-row { display: flex; justify-content: space-between; margin-top: 24px; gap: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🪪 나만의 사원증 만들기</h1>
+  <p>사진을 골라 사원증을 완성해보세요!</p>
+</header>
+
+<div class="stepbar">
+  <div class="step-item active" id="bar1"><span class="step-num">1</span>소개</div>
+  <span class="step-div">›</span>
+  <div class="step-item" id="bar2"><span class="step-num">2</span>사진 고르기</div>
+  <span class="step-div">›</span>
+  <div class="step-item" id="bar3"><span class="step-num">3</span>완성!</div>
+</div>
+
+<main>
+
+<!-- ══════════════ STEP 1 ══════════════ -->
+<div class="step active" id="s1">
+  <div class="two-col">
+    <div class="box">
+      <div class="s1-title">우아한형제들에<br>오신 것을 환영해요! 🎉</div>
+      <p class="s1-desc">
+        사원증은 본인이 직접 제출한 사진으로 제작됩니다.<br>
+        마음에 드는 사진 한 장으로 나만의 사원증을 완성해보세요.
+      </p>
+      <div class="s1-cards">
+        <img src="Group.png"  alt="예시 사원증 1">
+        <img src="Group2.png" alt="예시 사원증 2">
+        <img src="Group3.png" alt="예시 사원증 3">
+      </div>
+      <p class="s1-notice">*제출된 사진은 사원증 제작에만 사용됩니다.</p>
+    </div>
+
+    <div class="box">
+      <div class="panel-title">📋 사진 가이드</div>
+      <img src="Vector.png" alt="사진 가이드" class="guide-img">
+      <button class="btn btn-mint btn-full" onclick="goStep(2)">시작하기 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ STEP 2 ══════════════ -->
+<div class="step" id="s2">
+  <div class="three-col">
+
+    <!-- LEFT -->
+    <div class="box">
+      <div class="panel-title">📁 사진 업로드</div>
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <p>클릭하거나 사진을 여기에 드롭</p>
+      </div>
+      <input type="file" id="file-input" accept="image/jpeg,image/png" capture="user">
+      <button class="btn btn-mint btn-full" onclick="document.getElementById('file-input').click()" style="margin-bottom:16px">
+        사진 업로드
+      </button>
+
+      <div class="field">
+        <label>이름 (한글)</label>
+        <input type="text" id="name-ko" placeholder="홍길동" oninput="onProfileInputChange()">
+      </div>
+      <div class="field">
+        <label>생년월일</label>
+        <input type="text" id="birth-date" placeholder="YYMMDD" maxlength="6" oninput="onProfileInputChange()">
+      </div>
+      <p id="lookup-loading" class="lookup-msg lookup-loading" hidden>조회 중...</p>
+      <p id="lookup-error" class="lookup-msg lookup-error" hidden>일치하는 정보가 없습니다</p>
+      <div id="lookup-result" hidden>
+        <div class="field">
+          <label>영문 이름</label>
+          <input type="text" id="name-en" readonly tabindex="-1">
+        </div>
+        <div class="field">
+          <label>입사일</label>
+          <input type="text" id="hire-date-display" readonly tabindex="-1">
+        </div>
+        <div class="field">
+          <label>사번</label>
+          <input type="text" id="emp-id-display" readonly tabindex="-1">
+        </div>
+      </div>
+      <p class="s2-notice">생년월일은 6자리(예: 741001)로 입력하면 시트 날짜(1974-10-01)와 자동 매칭됩니다. 입사일은 사원증에 6 JAN 2026 형식으로 표시됩니다.</p>
+    </div>
+
+    <!-- CENTER -->
+    <div class="box canvas-panel">
+      <div class="panel-title" style="text-align:center">🪪 사원증 미리보기</div>
+      <p class="canvas-desc">원형 영역을 드래그해 위치를, 슬라이더로 크기를 조절하세요.</p>
+      <canvas id="card-canvas"></canvas>
+      <div id="face-status"></div>
+      <div class="zoom-row">
+        <label>크기</label>
+        <input type="range" id="zoom-slider" min="30" max="400" value="100">
+        <span class="zoom-pct" id="zoom-pct">100%</span>
+      </div>
+      <div class="card-actions">
+        <button class="card-btn" onclick="rotatePhoto()">↺ 회전</button>
+        <button class="card-btn" onclick="clearPhoto()">✕ 삭제</button>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="box">
+      <div class="panel-title">💡 사진 고르는 법</div>
+      <div class="guide-block">
+        <div class="guide-block-title gb-ok">✅ 이런 사진이면 완벽해요</div>
+        <ul>
+          <li>두 눈이 모두 보이는 사진</li>
+          <li>얼굴 주변에 여백이 있는 사진</li>
+          <li>자연스러운 현재 내 모습</li>
+          <li>증명사진·셀카·누가 찍어준 사진 모두 OK</li>
+        </ul>
+      </div>
+      <div class="guide-block">
+        <div class="guide-block-title gb-bad">⚠️ 이런 경우만 주의해요</div>
+        <ul>
+          <li>측면 사진 — 정면으로 올려주세요</li>
+          <li>마스크 착용 — 얼굴이 가리면 어려워요</li>
+          <li>여백 없는 사진 — 여백이 조금 있어야 해요</li>
+          <li>저화질·스캔본 — 선명한 파일로</li>
+          <li>둘이 찍은 사진 — 본인 단독 사진으로</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-row">
+    <button class="btn btn-outline" onclick="goStep(1)">← 이전</button>
+    <button class="btn btn-mint" onclick="goStep(3)">다음 →</button>
+  </div>
+</div>
+
+<!-- ══════════════ STEP 3 ══════════════ -->
+<div class="step" id="s3">
+  <div class="s3-title">🎉 사원증이 완성됐어요!</div>
+  <div class="three-col">
+    <div class="box" style="display:flex;flex-direction:column;align-items:center;gap:0">
+      <div class="panel-title">완성된 사원증</div>
+      <canvas id="final-canvas"></canvas>
+    </div>
+    <div class="box">
+      <div class="panel-title">📝 정보 확인</div>
+      <div class="info-row">
+        <div class="info-item">
+          <span class="info-label">이름</span>
+          <span class="info-value" id="info-ko">-</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">영문 이름</span>
+          <span class="info-value" id="info-en">-</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">사번</span>
+          <span class="info-value" id="info-emp">-</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">입사일</span>
+          <span class="info-value" id="info-date">-</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">생년월일</span>
+          <span class="info-value" id="info-birth">-</span>
+        </div>
+      </div>
+    </div>
+    <div class="box">
+      <div class="panel-title">✅ 제출 전 확인사항</div>
+      <ul class="checklist">
+        <li><span class="check-icon">✓</span>제출된 사진은 사원증 제작에만 사용됩니다.</li>
+        <li><span class="check-icon">✓</span>사원증은 입사 후 1주 내로 발급됩니다.</li>
+        <li><span class="check-icon">✓</span>사진 수정이 필요하면 담당자에게 문의해주세요.</li>
+        <li><span class="check-icon">✓</span>사원증 수령 후 분실 시 담당자에게 요청해주세요.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="submit-area">
+    <button class="btn btn-mint btn-full btn-lg" onclick="downloadCard()">▶ 사원증 사진 제출하기</button>
+  </div>
+  <div class="nav-row">
+    <button class="btn btn-outline" onclick="goStep(2)">← 이전</button>
+  </div>
+</div>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script>
+(function () {
+
+  /* ─── SVG 템플릿 (자동화템플릿_기본형 사원증.svg) ─────────── */
+  const SVG_TEMPLATE = {
+    file: '자동화템플릿_기본형 사원증.svg',
+    print: { x: 131.465, y: 24.021, w: 153.071, h: 243.78 },
+    circle: { cx: 207.94, cy: 169.215, r: 51.024 },
+    textIds: { nameKo: 'namekr', nameEn: 'nameen', date: 'date' },
+    renderScale: 4,
+  };
+  const WEBHOOK_URL = 'https://ex-n8n.woowahan.com/webhook/id-photo';
+  const LOOKUP_URL = 'https://ex-n8n.woowahan.com/webhook/lookup-member';
+
+  /* ─── State ──────────────────────────────────────────────── */
+  const profile = { verified: false, nameEn: '', hireDate: '', empId: '' };
+  const { w: PW, h: PH } = SVG_TEMPLATE.print;
+  const S = SVG_TEMPLATE.renderScale;
+  let W = Math.round(PW * S);
+  let H = Math.round(PH * S);
+  let overlayImg        = null;
+  let overlayOffscreen  = null;
+  let overlayObjectUrl  = null;
+  let svgTemplateRaw    = null;
+  let _faceApiReady     = null;
+  let rebuildTimer      = null;
+  let rebuildGen        = 0;
+  let lookupTimer       = null;
+  let lookupGen         = 0;
+  let lastLookupKey     = '';
+  const circle = {
+    cx: (SVG_TEMPLATE.circle.cx - SVG_TEMPLATE.print.x) * S,
+    cy: (SVG_TEMPLATE.circle.cy - SVG_TEMPLATE.print.y) * S,
+    r:  SVG_TEMPLATE.circle.r * S,
+  };
+
+  const photo = { img: null, x: 0, y: 0, scale: 1, baseScale: 1, rotation: 0 };
+
+  const canvas = document.getElementById('card-canvas');
+  const ctx    = canvas.getContext('2d');
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  /* ─── SVG 템플릿 로드·텍스트 치환 ───────────────────────── */
+  async function getSvgTemplateRaw() {
+    if (svgTemplateRaw) return svgTemplateRaw;
+    const res = await fetch(encodeURI(SVG_TEMPLATE.file));
+    if (!res.ok) throw new Error('SVG load failed: ' + res.status);
+    svgTemplateRaw = await res.text();
+    return svgTemplateRaw;
+  }
+
+  function fieldValues() {
+    return {
+      nameKo:  (document.getElementById('name-ko')?.value || '').trim(),
+      nameEn:  profile.verified ? profile.nameEn : '',
+      dateStr: profile.verified ? fmtDate(profile.hireDate) : '',
+    };
+  }
+
+  function setLookupUi({ loading = false, error = false, showResult = false } = {}) {
+    document.getElementById('lookup-loading').hidden = !loading;
+    document.getElementById('lookup-error').hidden = !error;
+    document.getElementById('lookup-result').hidden = !showResult;
+  }
+
+  function profileInputs() {
+    const nameKo = (document.getElementById('name-ko')?.value || '').trim();
+    const birth  = (document.getElementById('birth-date')?.value || '').replace(/\D/g, '').slice(0, 6);
+    return { nameKo, birth };
+  }
+
+  function clearVerifiedProfile() {
+    profile.verified = false;
+    profile.nameEn = '';
+    profile.hireDate = '';
+    profile.empId = '';
+    document.getElementById('name-en').value = '';
+    document.getElementById('hire-date-display').value = '';
+    document.getElementById('emp-id-display').value = '';
+    setLookupUi({ showResult: false, error: false, loading: false });
+    requestDraw();
+  }
+
+  async function runAutoLookup(nameKo, birth, key) {
+    if (!LOOKUP_URL) {
+      console.warn('[lookup] LOOKUP_URL is not set');
+      return;
+    }
+
+    const gen = ++lookupGen;
+    setLookupUi({ loading: true, error: false, showResult: false });
+
+    try {
+      const birthIso = yymmddToIso(birth);
+      if (!birthIso) throw new Error('invalid birth date');
+
+      const res = await fetch(LOOKUP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          name_ko: nameKo,
+          birth_date: birth,
+          birth_date_iso: birthIso,
+        }),
+      });
+      if (!res.ok) throw new Error('lookup failed');
+
+      const data = await res.json();
+      const nameEn = (data['영문이름'] || '').trim();
+      const hireDate = normalizeIsoDate(data['입사일자'] || '');
+      const empId = String(data['우아한인사 사번'] || '').trim();
+
+      if (!nameEn || !hireDate) throw new Error('invalid payload');
+      if (gen !== lookupGen) return;
+
+      lastLookupKey = key;
+      profile.verified = true;
+      profile.nameEn = nameEn;
+      profile.hireDate = hireDate;
+      profile.empId = empId;
+
+      document.getElementById('name-en').value = nameEn;
+      document.getElementById('hire-date-display').value = fmtDate(hireDate) || hireDate;
+      document.getElementById('emp-id-display').value = empId;
+
+      setLookupUi({ showResult: true });
+      requestDraw();
+    } catch (e) {
+      if (gen !== lookupGen) return;
+      console.error('[lookup]', e);
+      lastLookupKey = '';
+      profile.verified = false;
+      profile.nameEn = '';
+      profile.hireDate = '';
+      profile.empId = '';
+      document.getElementById('name-en').value = '';
+      document.getElementById('hire-date-display').value = '';
+      document.getElementById('emp-id-display').value = '';
+      setLookupUi({ loading: false, error: true, showResult: false });
+      requestDraw();
+    } finally {
+      if (gen === lookupGen) document.getElementById('lookup-loading').hidden = true;
+    }
+  }
+
+  window.onProfileInputChange = function () {
+    requestDraw();
+
+    clearTimeout(lookupTimer);
+    const { nameKo, birth } = profileInputs();
+
+    if (!nameKo || birth.length !== 6) {
+      lookupGen++;
+      lastLookupKey = '';
+      if (profile.verified || !document.getElementById('lookup-error').hidden) {
+        clearVerifiedProfile();
+      } else {
+        setLookupUi({ loading: false, error: false, showResult: false });
+      }
+      return;
+    }
+
+    const key = `${nameKo}|${birth}`;
+    if (key === lastLookupKey && profile.verified) return;
+
+    lookupTimer = setTimeout(() => runAutoLookup(nameKo, birth, key), 400);
+  };
+
+  function setSvgTextNode(textEl, value, doc) {
+    if (!textEl) return;
+    if (!value) {
+      textEl.setAttribute('visibility', 'hidden');
+      return;
+    }
+    textEl.removeAttribute('visibility');
+    while (textEl.firstChild) textEl.removeChild(textEl.firstChild);
+    const tspan = doc.createElementNS(SVG_NS, 'tspan');
+    tspan.setAttribute('x', '0');
+    tspan.setAttribute('y', '0');
+    tspan.textContent = value;
+    textEl.appendChild(tspan);
+  }
+
+  function setSvgField(doc, id, value) {
+    const el = doc.getElementById(id);
+    if (!el) return;
+    const textEl = el.localName === 'text' ? el : el.querySelector('text');
+    setSvgTextNode(textEl, value, doc);
+  }
+
+  async function buildCardSvgBlob() {
+    const raw = await getSvgTemplateRaw();
+    const doc = new DOMParser().parseFromString(raw, 'image/svg+xml');
+    const svg = doc.documentElement;
+
+    doc.getElementById('_가이드')?.remove();
+    doc.getElementById('_재단선')?.remove();
+    doc.querySelector('#_x3C_Rectangle_x3E_ circle')?.remove();
+    doc.getElementById('mask')?.remove();
+
+    const { nameKo, nameEn, dateStr } = fieldValues();
+    const { nameKo: idKo, nameEn: idEn, date: idDate } = SVG_TEMPLATE.textIds;
+    setSvgField(doc, idKo, nameKo);
+    setSvgField(doc, idEn, nameEn);
+    setSvgField(doc, idDate, dateStr);
+
+    const { x, y, w, h } = SVG_TEMPLATE.print;
+    svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
+    svg.setAttribute('width', String(w));
+    svg.setAttribute('height', String(h));
+
+    return new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' });
+  }
+
+  function buildOverlayOffscreen() {
+    overlayOffscreen = document.createElement('canvas');
+    overlayOffscreen.width  = W;
+    overlayOffscreen.height = H;
+    const oc = overlayOffscreen.getContext('2d');
+    oc.drawImage(overlayImg, 0, 0, W, H);
+    oc.globalCompositeOperation = 'destination-out';
+    oc.beginPath();
+    oc.arc(circle.cx, circle.cy, circle.r, 0, Math.PI * 2);
+    oc.fill();
+  }
+
+  function loadOverlayImage(url) {
+    return new Promise((resolve, reject) => {
+      if (!overlayImg) overlayImg = new Image();
+      overlayImg.onload = () => resolve();
+      overlayImg.onerror = () => reject(new Error('SVG render failed'));
+      overlayImg.src = url;
+    });
+  }
+
+  async function rebuildOverlay() {
+    const gen = ++rebuildGen;
+    const blob = await buildCardSvgBlob();
+    const url  = URL.createObjectURL(blob);
+    await loadOverlayImage(url);
+    if (gen !== rebuildGen) {
+      URL.revokeObjectURL(url);
+      return;
+    }
+    if (overlayObjectUrl) URL.revokeObjectURL(overlayObjectUrl);
+    overlayObjectUrl = url;
+    buildOverlayOffscreen();
+  }
+
+  async function initOverlay() {
+    canvas.width  = W;
+    canvas.height = H;
+    try {
+      await rebuildOverlay();
+      drawCard();
+    } catch (e) {
+      console.error('[overlay]', e);
+      drawCard();
+    }
+  }
+
+  function requestDraw() {
+    clearTimeout(rebuildTimer);
+    rebuildTimer = setTimeout(async () => {
+      try {
+        await rebuildOverlay();
+      } catch (e) {
+        console.error('[overlay]', e);
+      }
+      drawCard();
+    }, 40);
+  }
+
+  window.requestDraw = requestDraw;
+  initOverlay();
+
+  /* ─── face-api.js 모델 로드 (최초 1회) ──────────────────── */
+  function ensureFaceApi() {
+    if (_faceApiReady) return _faceApiReady;
+    _faceApiReady = (async () => {
+      try {
+        if (typeof faceapi === 'undefined') throw new Error('face-api.js CDN not loaded');
+        await faceapi.nets.tinyFaceDetector.loadFromUri('./weights');
+        console.log('[face-api] TinyFaceDetector loaded');
+        return true;
+      } catch (e) {
+        console.error('[face-api] load failed:', e);
+        _faceApiReady = null;
+        return false;
+      }
+    })();
+    return _faceApiReady;
+  }
+
+  /* ─── drawCard ───────────────────────────────────────────── */
+  function drawCard() {
+    ctx.clearRect(0, 0, W, H);
+
+    const { cx: pcx, cy: pcy, r: pr } = circle;
+
+    /* 1. 사진 (원형 클리핑) */
+    if (photo.img) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(pcx, pcy, pr, 0, Math.PI * 2);
+      ctx.clip();
+      const iw = photo.img.naturalWidth;
+      const ih = photo.img.naturalHeight;
+      const s  = photo.scale;
+      ctx.save();
+      ctx.translate(pcx + photo.x, pcy + photo.y);
+      ctx.rotate(photo.rotation * Math.PI / 180);
+      ctx.drawImage(photo.img, -iw * s / 2, -ih * s / 2, iw * s, ih * s);
+      ctx.restore();
+      ctx.restore();
+    }
+
+    /* 2. SVG 오버레이 (텍스트·디자인 — Illustrator 스타일 유지) */
+    if (overlayOffscreen) {
+      ctx.drawImage(overlayOffscreen, 0, 0);
+    }
+  }
+
+  /* YYMMDD(741001) → 시트 형식 YYYY-MM-DD(1974-10-01) */
+  function yymmddToIso(yymmdd) {
+    const s = String(yymmdd).replace(/\D/g, '');
+    if (s.length !== 6) return '';
+    const yy = parseInt(s.slice(0, 2), 10);
+    const mm = parseInt(s.slice(2, 4), 10);
+    const dd = parseInt(s.slice(4, 6), 10);
+    const year = yy >= 50 ? 1900 + yy : 2000 + yy;
+    if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return '';
+    const iso = `${year}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+    const dt = new Date(`${iso}T12:00:00`);
+    if (dt.getFullYear() !== year || dt.getMonth() + 1 !== mm || dt.getDate() !== dd) return '';
+    return iso;
+  }
+
+  function normalizeIsoDate(str) {
+    if (!str) return '';
+    const m = String(str).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[1]}-${m[2]}-${m[3]}` : '';
+  }
+
+  /* 시트/API ISO(2026-01-06) → 사원증 표기(6 JAN 2026) */
+  function fmtDate(str) {
+    const iso = normalizeIsoDate(str);
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    const MO = ['JAN','FEB','MAR','APR','MAY','JUN',
+                'JUL','AUG','SEP','OCT','NOV','DEC'];
+    return `${parseInt(d, 10)} ${MO[parseInt(m, 10) - 1]} ${y}`;
+  }
+
+  /* ─── Face detection (face-api.js TinyFaceDetector) ─────── */
+  async function placePhoto(imgEl) {
+    const pr = circle.r;
+
+    /* 기본값: 원 안에 이미지 전체 맞춤 */
+    const bs = Math.max((pr * 2) / imgEl.naturalWidth,
+                        (pr * 2) / imgEl.naturalHeight);
+    photo.x = 0; photo.y = 0;
+    photo.baseScale = bs; photo.scale = bs;
+    syncSlider();
+    drawCard();
+
+    setStatus('얼굴 인식 중...', 'info');
+    const ok = await ensureFaceApi();
+    if (!ok) {
+      setStatus('모델 로드 실패 — 수동으로 조절해주세요', 'warn');
+      return;
+    }
+
+    try {
+      const detection = await faceapi.detectSingleFace(
+        imgEl,
+        new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 })
+      );
+
+      if (!detection) {
+        setStatus('얼굴 미감지 — 수동으로 조절해주세요', 'warn');
+        return;
+      }
+
+      /* box: { x, y, width, height } — 원본 이미지 픽셀 기준 */
+      const { x, y, width: bw, height: bh } = detection.box;
+      const iw = imgEl.naturalWidth;
+      const ih = imgEl.naturalHeight;
+
+      /* 얼굴 주변 상하좌우 기본 여백 확보 (얼굴이 원 지름의 70% 차지) */
+      const FACE_FILL_RATIO = 0.7;
+      const ns = (pr * 2 * FACE_FILL_RATIO) / Math.max(bw, bh);
+      /* 머리 위쪽 여백을 더 주기 위해 얼굴을 살짝 아래로 이동 */
+      const TOP_MARGIN_BIAS_RATIO = 0.05; // 원 지름 기준 5% 하향 이동
+
+      photo.scale     = ns;
+      photo.baseScale = ns;
+      /* 얼굴 중심 → 원 중심으로 offset 계산 */
+      photo.x = -(x + bw / 2 - iw / 2) * ns;
+      photo.y = -(y + bh / 2 - ih / 2) * ns + (pr * 2 * TOP_MARGIN_BIAS_RATIO);
+
+      syncSlider();
+      drawCard();
+      setStatus('✓ 얼굴 자동 감지 완료', 'ok');
+    } catch (e) {
+      console.error('[face-api] detection error:', e);
+      setStatus('인식 실패 — 수동으로 조절해주세요', 'warn');
+    }
+  }
+
+  /* ─── File input ─────────────────────────────────────────── */
+  document.getElementById('file-input').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const rd = new FileReader();
+    rd.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        photo.img      = img;
+        photo.rotation = 0;
+        placePhoto(img);
+      };
+      img.src = ev.target.result;
+    };
+    rd.readAsDataURL(file);
+  });
+
+  const zone = document.getElementById('upload-zone');
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.style.borderColor = 'var(--mint)'; });
+  zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.style.borderColor = '';
+    const f = e.dataTransfer.files[0];
+    if (!f || !['image/jpeg', 'image/png'].includes(f.type)) return;
+    /* FileReader 직접 호출 — 합성 이벤트 우회 */
+    const rd = new FileReader();
+    rd.onload = ev => {
+      const img = new Image();
+      img.onload = () => { photo.img = img; photo.rotation = 0; placePhoto(img); };
+      img.src = ev.target.result;
+    };
+    rd.readAsDataURL(f);
+  });
+
+  /* ─── Drag / pinch ───────────────────────────────────────── */
+  let drag = false, dsx, dsy, ox0, oy0;
+  let lastPinch = null, pinchS0 = 1;
+
+  function toCanvas(cx, cy) {
+    const r = canvas.getBoundingClientRect();
+    return [(cx - r.left) * (W / r.width), (cy - r.top) * (H / r.height)];
+  }
+  function inCircle(x, y) {
+    return Math.hypot(x - circle.cx, y - circle.cy) <= circle.r;
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    const [x, y] = toCanvas(e.clientX, e.clientY);
+    if (photo.img && inCircle(x, y)) {
+      drag = true; dsx = x; dsy = y; ox0 = photo.x; oy0 = photo.y;
+    }
+  });
+  window.addEventListener('mousemove', e => {
+    if (!drag) return;
+    const [x, y] = toCanvas(e.clientX, e.clientY);
+    photo.x = ox0 + (x - dsx);
+    photo.y = oy0 + (y - dsy);
+    drawCard();
+  });
+  window.addEventListener('mouseup', () => { drag = false; });
+
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      const [x, y] = toCanvas(e.touches[0].clientX, e.touches[0].clientY);
+      if (photo.img && inCircle(x, y)) {
+        drag = true; dsx = x; dsy = y; ox0 = photo.x; oy0 = photo.y;
+      }
+      lastPinch = null;
+    } else if (e.touches.length === 2) {
+      drag = false;
+      lastPinch = ptDist(e.touches); pinchS0 = photo.scale;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1 && drag) {
+      const [x, y] = toCanvas(e.touches[0].clientX, e.touches[0].clientY);
+      photo.x = ox0 + (x - dsx);
+      photo.y = oy0 + (y - dsy);
+      drawCard();
+    } else if (e.touches.length === 2 && lastPinch) {
+      const d = ptDist(e.touches);
+      photo.scale = pinchS0 * (d / lastPinch);
+      setSliderFromScale();
+      drawCard();
+    }
+  }, { passive: false });
+  canvas.addEventListener('touchend', () => { drag = false; lastPinch = null; });
+
+  function ptDist(t) {
+    return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  }
+
+  /* ─── Zoom slider ────────────────────────────────────────── */
+  document.getElementById('zoom-slider').addEventListener('input', function () {
+    const pct = parseInt(this.value);
+    document.getElementById('zoom-pct').textContent = pct + '%';
+    if (!photo.img) return;
+    photo.scale = photo.baseScale * (pct / 100);
+    drawCard();
+  });
+
+  function syncSlider() {
+    const sl = document.getElementById('zoom-slider');
+    sl.value = 100;
+    document.getElementById('zoom-pct').textContent = '100%';
+  }
+  function setSliderFromScale() {
+    if (!photo.baseScale) return;
+    const pct = Math.round((photo.scale / photo.baseScale) * 100);
+    const sl  = document.getElementById('zoom-slider');
+    sl.value  = Math.min(400, Math.max(30, pct));
+    document.getElementById('zoom-pct').textContent = sl.value + '%';
+  }
+
+  /* ─── Rotate / Clear ─────────────────────────────────────── */
+  window.rotatePhoto = function () {
+    photo.rotation = (photo.rotation + 90) % 360;
+    drawCard();
+  };
+  window.clearPhoto = function () {
+    photo.img = null; photo.x = photo.y = 0;
+    photo.scale = photo.baseScale = 1; photo.rotation = 0;
+    document.getElementById('file-input').value = '';
+    syncSlider();
+    setStatus('', '');
+    drawCard();
+  };
+
+  /* ─── Status badge ───────────────────────────────────────── */
+  function setStatus(msg, type) {
+    const el = document.getElementById('face-status');
+    el.textContent = msg;
+    el.className = type === 'ok' ? 'status-ok' : type === 'warn' ? 'status-warn' : 'status-info';
+  }
+
+  /* ─── Navigation ─────────────────────────────────────────── */
+  window.goStep = async function (n) {
+    [1, 2, 3].forEach(i => {
+      document.getElementById('s' + i).classList.toggle('active', i === n);
+      document.getElementById('bar' + i).classList.toggle('active', i === n);
+    });
+    if (n === 3) {
+      clearTimeout(rebuildTimer);
+      try {
+        await rebuildOverlay();
+        drawCard();
+      } catch (e) {
+        console.error('[overlay]', e);
+      }
+      syncStep3();
+    }
+    window.scrollTo(0, 0);
+  };
+
+  function syncStep3() {
+    const fc = document.getElementById('final-canvas');
+    fc.width  = W; fc.height = H;
+    fc.getContext('2d').drawImage(canvas, 0, 0);
+
+    document.getElementById('info-ko').textContent    = document.getElementById('name-ko').value || '-';
+    document.getElementById('info-en').textContent    = profile.verified ? profile.nameEn : '-';
+    document.getElementById('info-emp').textContent   = profile.verified && profile.empId ? profile.empId : '-';
+    document.getElementById('info-date').textContent  = profile.verified ? (fmtDate(profile.hireDate) || '-') : '-';
+    document.getElementById('info-birth').textContent = document.getElementById('birth-date').value || '-';
+  }
+
+  function sanitizeFilePart(v, fallback) {
+    const s = (v || '').trim().replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '');
+    return s || fallback;
+  }
+
+  /* ─── Submit (POST webhook) ─────────────────────────────── */
+  window.downloadCard = function () {
+    const nameKo = document.getElementById('name-ko').value.trim();
+    const birth = document.getElementById('birth-date').value.trim() || '';
+
+    if (!profile.verified) {
+      alert('이름·생년월일 입력 후 입사 정보가 조회되어야 제출할 수 있습니다.');
+      return;
+    }
+
+    const nameEn = profile.nameEn;
+    const empId = profile.empId;
+    const hireDate = profile.hireDate;
+    const fname = `${sanitizeFilePart(nameKo, 'name')}_${sanitizeFilePart(empId || birth, 'id')}.png`;
+
+    if (!WEBHOOK_URL) {
+      alert('Webhook URL이 설정되지 않았습니다. 코드의 WEBHOOK_URL 값을 입력해주세요.');
+      return;
+    }
+
+    /* re-render at full overlay resolution */
+    const out  = document.createElement('canvas');
+    out.width  = W; out.height = H;
+    out.getContext('2d').drawImage(canvas, 0, 0);
+
+    out.toBlob(async blob => {
+      if (!blob) {
+        alert('이미지 생성에 실패했습니다. 다시 시도해주세요.');
+        return;
+      }
+      const dataUrl = await new Promise(resolve => {
+        const rd = new FileReader();
+        rd.onload = e => resolve(e.target.result);
+        rd.readAsDataURL(blob);
+      });
+
+      const birthIso = yymmddToIso(birth);
+      const payload = {
+        file_name: fname,
+        mime_type: 'image/png',
+        image_base64: String(dataUrl).split(',')[1],
+        submitted_at: new Date().toISOString(),
+        name_ko: nameKo,
+        name_en: nameEn,
+        emp_id: empId,
+        hire_date: hireDate,
+        hire_date_display: fmtDate(hireDate),
+        birth_date: birth,
+        birth_date_iso: birthIso,
+      };
+
+      try {
+        const res = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok && res.type !== 'opaque') throw new Error(`Webhook failed: ${res.status}`);
+        alert('제출이 완료되었습니다.');
+      } catch (e) {
+        console.error(e);
+        alert('제출에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      }
+    }, 'image/png');
+  };
+
+})();
+</script>
+</body>
+</html>

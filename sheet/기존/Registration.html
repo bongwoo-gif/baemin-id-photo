@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>사원증 촬영 등록</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .container {
+    background: white;
+    border-radius: 16px;
+    padding: 40px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    max-width: 500px;
+    width: 100%;
+  }
+  
+  h1 {
+    margin: 0 0 30px 0;
+    color: #333;
+    text-align: center;
+    font-size: 28px;
+  }
+  
+  .form-group {
+    margin-bottom: 20px;
+  }
+  
+  label {
+    display: block;
+    margin-bottom: 8px;
+    color: #555;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  
+  input[type="text"] {
+    width: 100%;
+    padding: 14px;
+    font-size: 18px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    transition: border-color 0.3s;
+  }
+  
+  input[type="text"]:focus {
+    outline: none;
+    border-color: #667eea;
+  }
+  
+  button {
+    width: 100%;
+    padding: 16px;
+    font-size: 18px;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  
+  button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+  }
+  
+  button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  .status {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 14px;
+    min-height: 20px;
+  }
+  
+  .status.success {
+    background: #d4edda;
+    color: #155724;
+  }
+  
+  .status.error {
+    background: #f8d7da;
+    color: #721c24;
+  }
+  
+  .status.info {
+    background: #d1ecf1;
+    color: #0c5460;
+  }
+  
+  /* 호출 알람 스타일 */
+  .call-alert {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    animation: pulse 1s infinite;
+  }
+  
+  .call-alert.active {
+    display: flex;
+  }
+  
+  .call-alert-content {
+    text-align: center;
+    color: white;
+    animation: zoom 0.5s ease-out;
+  }
+  
+  .call-alert-content h2 {
+    font-size: 120px;
+    margin: 0 0 40px 0;
+    text-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
+    animation: blink 1s infinite;
+  }
+  
+  .call-alert-content p {
+    font-size: 48px;
+    margin: 0;
+    font-weight: 600;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { background: rgba(0, 0, 0, 0.9); }
+    50% { background: rgba(102, 126, 234, 0.95); }
+  }
+  
+  @keyframes zoom {
+    0% { transform: scale(0.5); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+  
+  .hidden {
+    display: none;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>사원증 촬영 등록</h1>
+    
+    <form id="registrationForm">
+      <div class="form-group">
+        <label for="empNo">사번 (8자리 숫자)</label>
+        <input type="text" id="empNo" placeholder="예: 12345678" maxlength="8" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="nameKo">한글 성명</label>
+        <input type="text" id="nameKo" placeholder="예: 홍길동" required>
+      </div>
+      
+      <button type="submit" id="submitBtn">등록하기</button>
+    </form>
+    
+    <div id="status" class="status hidden"></div>
+  </div>
+  
+  <!-- 호출 알람 -->
+  <div id="callAlert" class="call-alert">
+    <div class="call-alert-content">
+      <h2>📢</h2>
+      <p id="callMessage">호출 메시지</p>
+    </div>
+  </div>
+
+<script>
+  // 사번 입력 필드 제한 설정
+  const empNoInput = document.getElementById('empNo');
+  empNoInput.addEventListener('input', (e) => {
+    let value = e.target.value.replace(/[^0-9]/g, '');
+    if (value.length > 8) {
+      value = value.slice(0, 8);
+    }
+    e.target.value = value;
+  });
+  
+  empNoInput.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const paste = (e.clipboardData || window.clipboardData).getData('text');
+    const numbers = paste.replace(/[^0-9]/g, '').slice(0, 8);
+    e.target.value = numbers;
+  });
+  
+  // 폼 제출 처리
+  document.getElementById('registrationForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    const empNo = empNoInput.value.trim();
+    const nameKo = document.getElementById('nameKo').value.trim();
+    const statusDiv = document.getElementById('status');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    if (!empNo || !nameKo) {
+      showStatus('사번과 성명을 모두 입력해주세요.', 'error');
+      return;
+    }
+    
+    if (!/^[0-9]{8}$/.test(empNo)) {
+      showStatus('사번은 8자리 숫자여야 합니다.', 'error');
+      return;
+    }
+    
+    submitBtn.disabled = true;
+    showStatus('등록 중...', 'info');
+    
+    google.script.run.withSuccessHandler((res) => {
+      if (res && res.ok) {
+        showStatus('등록이 완료되었습니다! 촬영 준비가 되면 호출해드리겠습니다.', 'success');
+        // 등록된 사번 저장
+        registeredEmpNo = empNo;
+        // 폼 초기화
+        empNoInput.value = '';
+        document.getElementById('nameKo').value = '';
+        submitBtn.disabled = false;
+      } else {
+        showStatus(res && res.message ? res.message : '등록에 실패했습니다.', 'error');
+        submitBtn.disabled = false;
+      }
+    }).withFailureHandler((error) => {
+      console.error('등록 실패:', error);
+      showStatus('등록 중 오류가 발생했습니다: ' + (error.message || error), 'error');
+      submitBtn.disabled = false;
+    }).registerForShooting(empNo, nameKo);
+  });
+  
+  function showStatus(message, type) {
+    const statusDiv = document.getElementById('status');
+    statusDiv.textContent = message;
+    statusDiv.className = 'status ' + type;
+    statusDiv.classList.remove('hidden');
+  }
+  
+  // 호출 알람 체크 (주기적으로 폴링)
+  let callCheckInterval = null;
+  let registeredEmpNo = null; // 등록된 사번 저장
+  let lastCalledEmpNo = null; // 마지막으로 호출된 사번 (중복 알람 방지)
+  
+  function startCallCheck() {
+    // 이미 실행 중이면 중복 실행 방지
+    if (callCheckInterval) return;
+    
+    callCheckInterval = setInterval(() => {
+      // 등록된 사번이 있으면 해당 사번만 체크, 없으면 모든 호출 상태 체크
+      if (registeredEmpNo) {
+        // 등록한 사번이 있으면 해당 사번만 체크
+        google.script.run.withSuccessHandler((res) => {
+          if (res && res.called && res.empNo === registeredEmpNo && res.empNo !== lastCalledEmpNo) {
+            lastCalledEmpNo = res.empNo;
+            showCallAlert(res.name, res.empNo);
+            // 호출 상태 초기화
+            google.script.run.clearCallStatus(res.empNo);
+          }
+        }).withFailureHandler((error) => {
+          console.error('호출 상태 확인 실패:', error);
+        }).checkCallStatusForEmpNo(registeredEmpNo);
+      } else {
+        // 등록한 사번이 없으면 모든 호출 상태 체크 (촬영자 대시보드에서 등록한 사람 포함)
+        google.script.run.withSuccessHandler((res) => {
+          if (res && res.called && res.empNo !== lastCalledEmpNo) {
+            lastCalledEmpNo = res.empNo;
+            showCallAlert(res.name, res.empNo);
+            // 호출 상태 초기화
+            google.script.run.clearCallStatus(res.empNo);
+          }
+        }).withFailureHandler((error) => {
+          console.error('호출 상태 확인 실패:', error);
+        }).checkCallStatus();
+      }
+    }, 2000); // 2초마다 체크
+  }
+  
+  // 띵동 소리 재생 함수
+  function playCallSound() {
+    try {
+      // Web Audio API를 사용하여 띵동 소리 생성
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // 띵동 소리 설정 (440Hz, 800Hz 두 번)
+      oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.1);
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.3);
+      
+      // 0.4초 후 두 번째 띵동
+      setTimeout(() => {
+        const oscillator2 = audioContext.createOscillator();
+        const gainNode2 = audioContext.createGain();
+        
+        oscillator2.connect(gainNode2);
+        gainNode2.connect(audioContext.destination);
+        
+        oscillator2.frequency.setValueAtTime(440, audioContext.currentTime);
+        oscillator2.frequency.setValueAtTime(800, audioContext.currentTime + 0.1);
+        oscillator2.type = 'sine';
+        
+        gainNode2.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+        
+        oscillator2.start(audioContext.currentTime);
+        oscillator2.stop(audioContext.currentTime + 0.3);
+      }, 400);
+    } catch (error) {
+      console.error('사운드 재생 실패:', error);
+      // 대체 방법: HTML5 Audio 사용
+      try {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUKfk8LZjHAY4kdfyzHksBSR3x/DdkEAKFF606euoVRQKRp/g8r5sIQUrgc7y2Yk2CBtpvfDknE4MDlCn5PC2YxwGOJHX8sx5LAUkd8fw3ZBAC');
+        audio.volume = 0.5;
+        audio.play().catch(e => console.error('Audio play failed:', e));
+      } catch (e) {
+        console.error('대체 사운드 재생 실패:', e);
+      }
+    }
+  }
+  
+  function showCallAlert(name, empNo) {
+    const alertDiv = document.getElementById('callAlert');
+    const messageP = document.getElementById('callMessage');
+    messageP.textContent = `${name} (${empNo})님 촬영 준비되었습니다!`;
+    alertDiv.classList.add('active');
+    
+    // 띵동 소리 재생
+    playCallSound();
+    
+    // 10초 후 자동으로 닫기
+    setTimeout(() => {
+      alertDiv.classList.remove('active');
+    }, 10000);
+  }
+  
+  // 페이지 로드 시 호출 체크 시작
+  window.addEventListener('load', () => {
+    startCallCheck();
+  });
+  
+  // 페이지 언로드 시 인터벌 정리
+  window.addEventListener('beforeunload', () => {
+    if (callCheckInterval) {
+      clearInterval(callCheckInterval);
+    }
+  });
+</script>
+</body>
+</html>

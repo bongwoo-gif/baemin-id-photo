@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>사원증 촬영 2.0</title>
+<style>
+  body { font-family: system-ui, -apple-system, Arial, sans-serif; margin: 20px; }
+  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .muted { color: #444; font-size: 14px; }
+  .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+  input[type="text"] { padding: 8px; font-size: 16px; width: 200px; }
+  button { padding: 8px 12px; font-size: 14px; cursor: pointer; }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .status { margin-top: 6px; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, 220px); gap: 12px; margin-top: 16px; }
+  .card { border: 1px solid #ddd; border-radius: 8px; padding: 8px; width: 200px; position: relative; }
+  .meta { font-size: 12px; margin-bottom: 6px; color: #666; }
+  .delete-btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    background: transparent;
+    color: #999;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: normal;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+    z-index: 10;
+  }
+  .delete-btn:hover {
+    color: #666;
+  }
+  .frame {
+    width: 100%; height: 160px;
+    background: #fafafa; border: 1px dashed #ccc;
+    position: relative;
+    display: flex; justify-content: center; align-items: center;
+  }
+  iframe { width: 100%; height: 100%; border: none; }
+  input[type="file"] { display: none; }
+  .upload-label {
+    padding: 12px 24px;
+    background: #007bff;
+    color: white; font-size: 14px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .uploading {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(255,255,255,0.7);
+    color: #333; font-size: 14px; font-weight: bold;
+    display: flex; justify-content: center; align-items: center;
+  }
+  .overlay {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    color: #fff; font-size: 14px;
+    display: flex; justify-content: center; align-items: center;
+    opacity: 0; transition: opacity 0.2s;
+    cursor: pointer;
+  }
+  .frame:hover .overlay { opacity: 1; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <div style="display:flex; gap:12px; align-items:center;">
+      <a href="https://script.google.com/a/macros/woowahan.com/s/AKfycbweYlfPmb8j9FhIjatqeWK4PNfPbiygzlkU8qsBk3n-fqDEAthHS7sziIbNFVxZ0ME/exec"
+         target="_blank" style="display:flex; align-items:center; gap:4px; text-decoration:none; color:#444; font-size:12px;">
+        <img src="https://www.gstatic.com/images/branding/product/1x/photos_48dp.png" alt="photos" style="width:16px; height:16px;">
+        <span>사진 미리 보기</span>
+      </a>
+      <a class="sheetlink"
+         href="https://docs.google.com/spreadsheets/d/1UcrwW-6cC75IqGZL4rCQp8V55qH85HFABTMcfxPl7p4/edit#gid=0"
+         target="_blank" style="display:flex; align-items:center; gap:4px; text-decoration:none; color:#444; font-size:12px;">
+        <img src="https://www.gstatic.com/images/branding/product/1x/sheets_48dp.png"
+             alt="sheets" style="width:16px; height:16px;">
+        <span>마스터시트</span>
+      </a>
+      <a class="drivelink"
+         href="https://drive.google.com/drive/folders/1hg-6ITs3Jj8auDStTnfuXCNwLefM8hGz"
+         target="_blank" style="display:flex; align-items:center; gap:4px; text-decoration:none; color:#444; font-size:12px;">
+        <img src="https://www.gstatic.com/images/branding/product/1x/drive_48dp.png"
+             alt="drive" style="width:16px; height:16px;">
+        <span>허브 드라이브</span>
+      </a>
+    </div>
+    <div id="today" class="muted">로딩 중…</div>
+    <div id="count" class="muted">촬영 인원 0명</div>
+  </div>
+
+  <div class="row">
+    <input id="empNo" type="text" placeholder="사번(8자리 숫자)" inputmode="numeric" maxlength="8" pattern="[0-9]{8}" disabled />
+    <input id="nameKo" type="text" placeholder="한글 성명" disabled />
+    <button id="btnSet" disabled>촬영자 등록</button>
+    <button id="btnClearCache" disabled style="padding: 8px 12px; font-size: 14px; cursor: pointer; background: #dc3545; color: white; border: none; border-radius: 4px;">캐시 초기화</button>
+    <span id="setStatus" class="status"></span>
+  </div>
+
+  <div id="uploadSection" class="hidden">
+    <div id="grid" class="grid"></div>
+  </div>
+
+<script>
+  let shooterCount = 0;
+  const registeredEmpNos = new Set();
+  let isUploading = false; // 업로드 중인지 추적
+
+  // 사번 입력 필드 제한 설정 함수
+  function setupEmpNoInput() {
+    const empNoInput = document.getElementById('empNo');
+    empNoInput.addEventListener('input', (e) => {
+      // 숫자가 아닌 문자 제거
+      let value = e.target.value.replace(/[^0-9]/g, '');
+      // 8자리 초과 방지
+      if (value.length > 8) {
+        value = value.slice(0, 8);
+      }
+      e.target.value = value;
+    });
+    
+    // 붙여넣기 시에도 숫자만 허용
+    empNoInput.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const paste = (e.clipboardData || window.clipboardData).getData('text');
+      const numbers = paste.replace(/[^0-9]/g, '').slice(0, 8);
+      e.target.value = numbers;
+    });
+  }
+
+  google.script.run.withSuccessHandler(({todayKST, shooterCount: count, userId, todayUploads}) => {
+    const fmtDate = todayKST.replace(/(\d{4})-(\d{2})-(\d{2})/, "$1년 $2월 $3일");
+    document.getElementById('today').textContent =
+      `${fmtDate}, ${userId}, 사원증 촬영 잘 부탁드립니다.`;
+
+    // 오늘 날짜에 업로드된 정보들 불러오기
+    if (todayUploads && todayUploads.length > 0) {
+      todayUploads.forEach(upload => {
+        registeredEmpNos.add(upload.empNo);
+        createCard(upload.empNo, upload.name, upload.nameEn, upload.joinDate, upload.link);
+      });
+      document.getElementById('uploadSection').classList.remove('hidden');
+    }
+    
+    // shooterCount를 실제 등록된 인원 수로 설정
+    shooterCount = registeredEmpNos.size;
+    document.getElementById('count').textContent = `촬영 인원 ${shooterCount}명`;
+
+    document.getElementById('empNo').disabled = false;
+    document.getElementById('nameKo').disabled = false;
+    document.getElementById('btnSet').disabled = false;
+    document.getElementById('btnClearCache').disabled = false;
+    
+    // 사번 입력 필드 제한 설정
+    setupEmpNoInput();
+    
+    // 등록 이벤트 확인 시작 (다른 사용자가 등록하면 자동 새로고침)
+    startRegistrationEventCheck();
+    
+    console.log('[초기 로딩 완료] 모든 버튼 활성화됨');
+  }).withFailureHandler(error => {
+    console.error('초기 데이터 로딩 실패:', error);
+    document.getElementById('today').textContent = '데이터 로딩 실패';
+    document.getElementById('empNo').disabled = false;
+    document.getElementById('nameKo').disabled = false;
+    document.getElementById('btnSet').disabled = false;
+    document.getElementById('btnClearCache').disabled = false;
+    
+    // 사번 입력 필드 제한 설정
+    setupEmpNoInput();
+    
+    console.log('[초기 로딩 실패] 모든 버튼 활성화됨');
+  }).getInitData();
+
+  document.getElementById('btnSet').addEventListener('click', () => {
+    const empNo = document.getElementById('empNo').value.trim();
+    const nameKo = document.getElementById('nameKo').value.trim();
+    const status = document.getElementById('setStatus');
+
+    if (!empNo || !nameKo) {
+      status.textContent = '사번과 성명을 모두 입력';
+      return;
+    }
+    
+    // 사번이 8자리 숫자인지 확인
+    if (!/^[0-9]{8}$/.test(empNo)) {
+      status.textContent = '사번은 8자리 숫자여야 합니다.';
+      return;
+    }
+    
+    // 이미 등록된 사번인 경우 카드가 이미 있는지 확인
+    if (registeredEmpNos.has(empNo)) {
+      const existingCard = document.getElementById(`card-${empNo}`);
+      if (existingCard) {
+        status.textContent = '이미 등록된 사번입니다.';
+        return;
+      }
+      // 카드가 없으면 registeredEmpNos에서 제거하고 다시 등록 시도
+      registeredEmpNos.delete(empNo);
+    }
+
+    // 찾는 중 표시 및 입력 필드 비활성화
+    status.textContent = '찾는 중...';
+    const btnSet = document.getElementById('btnSet');
+    const btnClearCache = document.getElementById('btnClearCache');
+    const empNoInput = document.getElementById('empNo');
+    const nameKoInput = document.getElementById('nameKo');
+    btnSet.disabled = true;
+    btnClearCache.disabled = true;
+    empNoInput.disabled = true;
+    nameKoInput.disabled = true;
+    console.log('[찾는 중] 입력 필드 비활성화');
+
+    // 입력 필드 활성화 함수
+    const enableInputs = () => {
+      btnSet.disabled = false;
+      btnClearCache.disabled = false;
+      empNoInput.disabled = false;
+      nameKoInput.disabled = false;
+      console.log('[입력 필드 활성화]');
+    };
+
+    google.script.run.withSuccessHandler(res => {
+      console.log('[verifyUser 성공] 응답:', res);
+      
+      if (!res || !res.ok) {
+        console.error('[verifyUser 실패] res:', res);
+        status.textContent = res && res.message ? res.message : '오류가 발생했습니다.';
+        enableInputs();
+        return;
+      }
+
+      // 카드가 이미 있으면 생성하지 않음
+      const existingCard = document.getElementById(`card-${empNo}`);
+      if (existingCard) {
+        console.warn('[카드 중복] 이미 존재하는 카드:', empNo);
+        status.textContent = '이미 등록된 사번입니다.';
+        enableInputs();
+        return;
+      }
+
+      console.log('[등록 시작] 사번:', empNo, '이름:', res.name);
+      registeredEmpNos.add(empNo);
+      shooterCount += 1;
+      document.getElementById('count').textContent = `촬영 인원 ${shooterCount}명`;
+
+      status.textContent = '촬영자 등록됨';
+      console.log('[카드 생성 시작]', res);
+      createCard(res.empNo, res.name, res.nameEn, res.joinDate, res.link);
+      console.log('[카드 생성 완료]', res.empNo);
+      document.getElementById('uploadSection').classList.remove('hidden');
+      
+      // 링크가 없으면 백그라운드에서 드라이브 검색 (기존 사진 파일 찾기)
+      if (!res.link) {
+        console.log('[백그라운드 검색] 드라이브에서 기존 사진 파일 검색 시작');
+        google.script.run.withSuccessHandler((linkRes) => {
+          if (linkRes && linkRes.link) {
+            console.log('[백그라운드 검색] 기존 사진 파일 찾음:', linkRes.link);
+            // 카드 업데이트
+            const card = document.getElementById(`card-${res.empNo}`);
+            if (card) {
+              const frame = card.querySelector('.frame');
+              if (frame) {
+                // 기존 업로드 버튼과 라벨 숨기기
+                const label = frame.querySelector('label');
+                const uploadBtn = frame.querySelector('input[type="file"]');
+                if (label) label.style.display = 'none';
+                if (uploadBtn) uploadBtn.style.display = 'none';
+                
+                // iframe 추가
+                let iframe = frame.querySelector('iframe');
+                if (!iframe) {
+                  iframe = document.createElement('iframe');
+                  frame.appendChild(iframe);
+                }
+                iframe.src = linkRes.link;
+                
+                // 오버레이 표시
+                const overlay = frame.querySelector('.overlay');
+                if (overlay) overlay.style.display = 'flex';
+              }
+            }
+          } else {
+            console.log('[백그라운드 검색] 기존 사진 파일 없음');
+          }
+        }).withFailureHandler((error) => {
+          console.error('[백그라운드 검색 실패]', error);
+        }).findImageForUser(res.empNo, res.name);
+      }
+      
+      // 등록 성공 시 입력 필드 비우기
+      document.getElementById('empNo').value = '';
+      document.getElementById('nameKo').value = '';
+      
+      // 등록 성공 시에도 입력 필드 활성화 (다음 등록을 위해)
+      enableInputs();
+    }).withFailureHandler(error => {
+      console.error('[verifyUser 에러]', error);
+      status.textContent = '오류가 발생했습니다: ' + (error.message || error);
+      enableInputs();
+    }).verifyUser(empNo, nameKo);
+  });
+
+  document.getElementById('btnClearCache').addEventListener('click', () => {
+    if (!confirm('캐시를 초기화하고 카드를 모두 제거하시겠습니까?')) {
+      return;
+    }
+    
+    const status = document.getElementById('setStatus');
+    status.textContent = '캐시 초기화 중...';
+    
+    google.script.run.withSuccessHandler(res => {
+      console.log('[캐시 초기화] 결과:', res);
+      if (res && res.ok) {
+        // 카드 프레임 영역 비우기
+        const grid = document.getElementById('grid');
+        if (grid) {
+          grid.innerHTML = '';
+        }
+        
+        // 등록된 사번 목록 초기화
+        registeredEmpNos.clear();
+        shooterCount = 0;
+        document.getElementById('count').textContent = `촬영 인원 ${shooterCount}명`;
+        
+        // 업로드 섹션 숨기기
+        document.getElementById('uploadSection').classList.add('hidden');
+        
+        // 입력 필드 초기화
+        document.getElementById('empNo').value = '';
+        document.getElementById('nameKo').value = '';
+        
+        status.textContent = res.message || '캐시가 초기화되었습니다.';
+        console.log('[캐시 초기화 완료] 카드 프레임 비움');
+      } else {
+        status.textContent = res && res.message ? res.message : '캐시 초기화 실패';
+      }
+    }).withFailureHandler(error => {
+      console.error('[캐시 초기화 에러]', error);
+      status.textContent = '캐시 초기화 실패: ' + (error.message || error);
+    }).clearTodayCache();
+  });
+
+  function createCard(empNo, nameKo, nameEn, joinDate, link) {
+    console.log('[createCard 호출]', { empNo, nameKo, nameEn, joinDate, link });
+    
+    if (document.getElementById(`card-${empNo}`)) {
+      console.warn('[createCard 중복] 이미 존재하는 카드:', empNo);
+      return;
+    }
+
+    const grid = document.getElementById('grid');
+    if (!grid) {
+      console.error('[createCard 에러] grid 요소를 찾을 수 없음');
+      return;
+    }
+    
+    console.log('[createCard 진행] 카드 생성 시작');
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = `card-${empNo}`;
+
+    // 삭제 버튼 (우상단)
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'delete-btn';
+    deleteBtn.textContent = '×';
+    deleteBtn.title = '삭제';
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation(); // 이벤트 전파 방지
+      if (confirm('삭제하시겠습니까?')) {
+        deleteCard(empNo);
+      }
+    });
+    card.appendChild(deleteBtn);
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.style.display = 'flex';
+    meta.style.alignItems = 'center';
+    meta.style.gap = '8px';
+    
+    const metaText = document.createElement('span');
+    metaText.textContent = `${empNo} / ${nameKo}`;
+    meta.appendChild(metaText);
+    
+    // 호출 버튼 추가 (이름 옆에 배치, X버튼과 겹치지 않도록)
+    const callBtn = document.createElement('button');
+    callBtn.className = 'card-call-btn';
+    callBtn.textContent = '호출';
+    callBtn.title = '호출하기';
+    callBtn.style.cssText = 'padding: 4px 8px; font-size: 11px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background 0.2s; flex-shrink: 0;';
+    callBtn.addEventListener('mouseenter', () => {
+      callBtn.style.background = '#218838';
+    });
+    callBtn.addEventListener('mouseleave', () => {
+      callBtn.style.background = '#28a745';
+    });
+    callBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      callPerson(empNo, nameKo);
+    });
+    meta.appendChild(callBtn);
+    
+    card.appendChild(meta);
+
+    const frame = document.createElement('div');
+    frame.className = 'frame';
+    card.appendChild(frame);
+
+    const uploadBtn = document.createElement('input');
+    uploadBtn.type = 'file';
+    uploadBtn.accept = 'image/*';
+    uploadBtn.id = `file-${empNo}`;
+    frame.appendChild(uploadBtn);
+
+    const label = document.createElement('label');
+    label.setAttribute('for', `file-${empNo}`);
+    label.className = 'upload-label';
+    label.textContent = '사진 업로드';
+    frame.appendChild(label);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.textContent = '이미지 교체 (클릭)';
+    overlay.style.display = 'none';
+    frame.appendChild(overlay);
+
+    if (link) {
+      const iframe = document.createElement('iframe');
+      iframe.src = link; // 이미 /preview 변환된 상태
+      frame.appendChild(iframe);
+      label.style.display = 'none';
+      uploadBtn.style.display = 'none';
+      overlay.style.display = 'flex';
+    } else {
+      label.style.display = 'inline-block';
+      overlay.style.display = 'none';
+    }
+
+    overlay.addEventListener('click', () => uploadBtn.click());
+
+    uploadBtn.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      // 업로드 시작: 버튼 비활성화
+      isUploading = true;
+      const btnSet = document.getElementById('btnSet');
+      const btnClearCache = document.getElementById('btnClearCache');
+      const empNoInput = document.getElementById('empNo');
+      const nameKoInput = document.getElementById('nameKo');
+      btnSet.disabled = true;
+      btnClearCache.disabled = true;
+      empNoInput.disabled = true;
+      nameKoInput.disabled = true;
+      console.log('[업로드 시작] 촬영자 등록 버튼 및 캐시 초기화 버튼 비활성화');
+
+      const uploading = document.createElement('div');
+      uploading.className = 'uploading';
+      uploading.textContent = '업로드 중...';
+      frame.appendChild(uploading);
+
+      try {
+        // 파일 크기 사전 체크 (클라이언트 측)
+        const fileSizeMB = file.size / 1024 / 1024;
+        if (fileSizeMB > 7) {
+          alert('파일 크기가 너무 큽니다. (최대 7MB)\n이미지를 압축하거나 크기를 줄여주세요.');
+          frame.removeChild(uploading);
+          isUploading = false;
+          const btnSetAfter = document.getElementById('btnSet');
+          const btnClearCacheAfter = document.getElementById('btnClearCache');
+          const empNoInputAfter = document.getElementById('empNo');
+          const nameKoInputAfter = document.getElementById('nameKo');
+          btnSetAfter.disabled = false;
+          btnClearCacheAfter.disabled = false;
+          empNoInputAfter.disabled = false;
+          nameKoInputAfter.disabled = false;
+          return;
+        }
+        
+        const b64 = await fileToDataURL(file);
+        google.script.run.withSuccessHandler(res => {
+          frame.removeChild(uploading);
+          if (res && res.ok) {
+            let iframe = frame.querySelector('iframe');
+            if (!iframe) {
+              iframe = document.createElement('iframe');
+              frame.appendChild(iframe);
+            }
+            iframe.src = res.webViewLink;
+
+            label.style.display = 'none';
+            uploadBtn.style.display = 'none';
+            overlay.style.display = 'flex';
+            console.log('[업로드 완료] 촬영자 등록 버튼 활성화');
+          } else {
+            alert('업로드 실패');
+            console.log('[업로드 실패] 촬영자 등록 버튼 활성화');
+          }
+          
+          // 업로드 완료/실패: 버튼 활성화
+          isUploading = false;
+          const btnSetAfter = document.getElementById('btnSet');
+          const btnClearCacheAfter = document.getElementById('btnClearCache');
+          const empNoInputAfter = document.getElementById('empNo');
+          const nameKoInputAfter = document.getElementById('nameKo');
+          btnSetAfter.disabled = false;
+          btnClearCacheAfter.disabled = false;
+          empNoInputAfter.disabled = false;
+          nameKoInputAfter.disabled = false;
+        }).withFailureHandler(error => {
+          console.error('[업로드 에러]', error);
+          alert('업로드 중 오류가 발생했습니다.');
+          frame.removeChild(uploading);
+          
+          // 업로드 실패: 버튼 활성화
+          isUploading = false;
+          const btnSetAfter = document.getElementById('btnSet');
+          const btnClearCacheAfter = document.getElementById('btnClearCache');
+          const empNoInputAfter = document.getElementById('empNo');
+          const nameKoInputAfter = document.getElementById('nameKo');
+          btnSetAfter.disabled = false;
+          btnClearCacheAfter.disabled = false;
+          empNoInputAfter.disabled = false;
+          nameKoInputAfter.disabled = false;
+          console.log('[업로드 에러] 촬영자 등록 버튼 및 캐시 초기화 버튼 활성화');
+        }).uploadImageToPrinterFolder(b64, file.name, empNo, nameKo, nameEn, joinDate);
+      } catch (error) {
+        console.error('[업로드 처리 에러]', error);
+        alert('업로드 처리 중 오류가 발생했습니다.');
+        if (frame.contains(uploading)) {
+          frame.removeChild(uploading);
+        }
+        
+        // 업로드 실패: 버튼 활성화
+        isUploading = false;
+        const btnSetAfter = document.getElementById('btnSet');
+        const btnClearCacheAfter = document.getElementById('btnClearCache');
+        const empNoInputAfter = document.getElementById('empNo');
+        const nameKoInputAfter = document.getElementById('nameKo');
+        btnSetAfter.disabled = false;
+        btnClearCacheAfter.disabled = false;
+        empNoInputAfter.disabled = false;
+        nameKoInputAfter.disabled = false;
+        console.log('[업로드 처리 에러] 촬영자 등록 버튼 및 캐시 초기화 버튼 활성화');
+      }
+    });
+
+    grid.appendChild(card);
+    console.log('[createCard 완료] 카드 추가됨:', empNo);
+  }
+
+  // 카드 삭제 함수
+  function deleteCard(empNo) {
+    console.log('[카드 삭제 시작] 사번:', empNo);
+    
+    // 카드 DOM 요소 제거
+    const card = document.getElementById(`card-${empNo}`);
+    if (card) {
+      card.remove();
+      console.log('[카드 삭제] DOM 요소 제거 완료');
+    }
+    
+    // 등록된 사번 목록에서 제거
+    registeredEmpNos.delete(empNo);
+    
+    // 촬영 인원 수 감소
+    shooterCount = Math.max(0, shooterCount - 1);
+    document.getElementById('count').textContent = `촬영 인원 ${shooterCount}명`;
+    
+    // 캐시에서도 제거
+    google.script.run.withSuccessHandler(res => {
+      console.log('[캐시 삭제] 결과:', res);
+    }).withFailureHandler(error => {
+      console.error('[캐시 삭제 에러]', error);
+    }).removeFromCache(empNo);
+    
+    // 카드가 없으면 업로드 섹션 숨기기
+    const grid = document.getElementById('grid');
+    if (grid && grid.children.length === 0) {
+      document.getElementById('uploadSection').classList.add('hidden');
+    }
+    
+    console.log('[카드 삭제 완료] 사번:', empNo);
+  }
+
+  function fileToDataURL(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+
+
+  // 특정인 호출
+  function callPerson(empNo, name) {
+    if (!confirm(`${name} (${empNo})님을 호출하시겠습니까?`)) {
+      return;
+    }
+
+    google.script.run.withSuccessHandler((res) => {
+      if (res && res.ok) {
+        alert(res.message || `${name}님을 호출했습니다.`);
+      } else {
+        alert(res && res.message ? res.message : '호출에 실패했습니다.');
+      }
+    }).withFailureHandler((error) => {
+      console.error('[호출 실패]', error);
+      alert('호출 중 오류가 발생했습니다: ' + (error.message || error));
+    }).callPerson(empNo, name);
+  }
+
+  // 등록 이벤트 확인 (다른 사용자가 등록하면 자동 새로고침)
+  let registrationEventInterval = null;
+  let lastRegistrationTimestamp = 0;
+
+  function startRegistrationEventCheck() {
+    // 이미 실행 중이면 중복 실행 방지
+    if (registrationEventInterval) return;
+    
+    // 초기 타임스탬프 설정
+    lastRegistrationTimestamp = Date.now();
+    
+    registrationEventInterval = setInterval(() => {
+      google.script.run.withSuccessHandler((res) => {
+        if (res && res.hasNew) {
+          console.log('[등록 이벤트 감지] 새로운 등록:', res.name, '(', res.empNo, ')');
+          lastRegistrationTimestamp = res.timestamp;
+          
+          // 페이지 새로고침 (카드 목록 업데이트)
+          refreshCardList();
+        }
+      }).withFailureHandler((error) => {
+        console.error('[등록 이벤트 확인 실패]', error);
+      }).checkRegistrationEvent(lastRegistrationTimestamp);
+    }, 5000); // 5초마다 확인
+  }
+
+  // 카드 목록 새로고침
+  function refreshCardList() {
+    console.log('[카드 목록 새로고침 시작]');
+    
+    google.script.run.withSuccessHandler(({todayKST, shooterCount: count, userId, todayUploads}) => {
+      // 기존 카드 제거 (등록된 사번 목록은 유지)
+      const grid = document.getElementById('grid');
+      if (grid) {
+        grid.innerHTML = '';
+      }
+      
+      // 등록된 사번 목록 초기화 (다시 추가하기 위해)
+      const currentEmpNos = new Set(registeredEmpNos);
+      registeredEmpNos.clear();
+      
+      // 새로운 데이터로 카드 생성
+      if (todayUploads && todayUploads.length > 0) {
+        todayUploads.forEach(upload => {
+          registeredEmpNos.add(upload.empNo);
+          createCard(upload.empNo, upload.name, upload.nameEn, upload.joinDate, upload.link);
+        });
+        document.getElementById('uploadSection').classList.remove('hidden');
+      }
+      
+      // 촬영 인원 수 업데이트
+      shooterCount = registeredEmpNos.size;
+      document.getElementById('count').textContent = `촬영 인원 ${shooterCount}명`;
+      
+      console.log('[카드 목록 새로고침 완료]', shooterCount + '명');
+    }).withFailureHandler((error) => {
+      console.error('[카드 목록 새로고침 실패]', error);
+    }).getInitData();
+  }
+
+  // 페이지 언로드 시 인터벌 정리
+  window.addEventListener('beforeunload', () => {
+    if (registrationEventInterval) {
+      clearInterval(registrationEventInterval);
+    }
+  });
+</script>
+</body>
+</html>
