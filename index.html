@@ -590,8 +590,18 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
   function setSvgField(doc, id, value) {
     const el = doc.getElementById(id);
     if (!el) return;
-    const textEl = el.localName === 'text' ? el : el.querySelector('text');
-    setSvgTextNode(textEl, value, doc);
+
+    const texts = el.localName === 'text' ? [el] : [...el.querySelectorAll('text')];
+    if (!texts.length) return;
+
+    if (!value) {
+      texts.forEach(t => t.setAttribute('visibility', 'hidden'));
+      return;
+    }
+
+    const primary = texts[0];
+    texts.slice(1).forEach(t => t.remove());
+    setSvgTextNode(primary, value, doc);
   }
 
   async function buildCardSvgBlob() {
