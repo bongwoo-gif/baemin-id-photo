@@ -18,9 +18,9 @@
       <circle cx="207.939" cy="169.214" r="51.024" transform="translate(-58.749 196.597) rotate(-45)" fill="#fff"/>
     </g>
     <g id="date">
-      <text transform="translate(148.659 107.367)" fill="#231815" font-family="Pretendard-Bold-KSCpc-EUC-H, Pretendard" font-size="9" font-weight="700" letter-spacing="-.025em"><tspan x="0" y="0"></tspan></text>
+      <text transform="translate(148.659 107.367)" fill="#231815" font-family="Pretendard-Bold-KSCpc-EUC-H, Pretendard" font-size="9" font-weight="bold" letter-spacing="-.025em"><tspan x="0" y="0"></tspan></text>
     </g>
-    <text id="nameen" transform="translate(148.659 94.569)" fill="#231815" font-family="Pretendard-Bold-KSCpc-EUC-H, Pretendard" font-size="12" font-weight="700" letter-spacing="-.014em"><tspan x="0" y="0"></tspan></text>
+    <text id="nameen" transform="translate(148.659 94.569)" fill="#231815" font-family="Pretendard-Bold-KSCpc-EUC-H, Pretendard" font-size="12" font-weight="bold" letter-spacing="-.014em"><tspan x="0" y="0"></tspan></text>
     <text id="namekr" transform="translate(144.878 77.05)" fill="#231815" font-family="BAEMINWORK-KSCpc-EUC-H, &apos;BAEMIN WORK&apos;" font-size="31" letter-spacing="-.025em"><tspan x="0" y="0"></tspan></text>
     <g id="mask">
       <path id="cliping" d="M207.94,220.239c28.18,0,51.024-22.844,51.024-51.024s-22.844-51.024-51.024-51.024-51.024,22.844-51.024,51.024,22.844,51.024,51.024,51.024h0Z" fill="#fff"/>
