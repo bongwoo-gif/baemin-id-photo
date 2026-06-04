@@ -4,7 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>나만의 사원증 만들기</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
 <style>
+@font-face {
+  font-family: 'BAEMIN WORK';
+  src: url('fonts/BAEMINWORKTT.ttf') format('truetype'),
+       url('fonts/BAEMINWORK.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
   --mint: #00C2B3;
@@ -413,6 +421,11 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
     print: { x: 131.465, y: 24.021, w: 153.071, h: 243.78 },
     circle: { cx: 207.939, cy: 169.214, r: 51.024 },
     textIds: { nameKo: 'namekr', nameEn: 'nameen', date: 'date' },
+    /* 인쇄영역 기준 좌표·크기 (SVG text transform과 동일) */
+    textLayout: {
+      nameEn: { x: 17.194, y: 70.548, size: 12, letterSpacing: -0.014 },
+      date:   { x: 17.194, y: 83.346, size: 9,  letterSpacing: -0.025 },
+    },
     renderScale: 6,
   };
   const WEBHOOK_URL = 'https://ex-n8n.woowahan.com/webhook/id-photo';
@@ -587,6 +600,13 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
     textEl.appendChild(tspan);
   }
 
+  function hideSvgField(doc, id) {
+    const el = doc.getElementById(id);
+    if (!el) return;
+    const texts = el.localName === 'text' ? [el] : [...el.querySelectorAll('text')];
+    texts.forEach(t => t.setAttribute('visibility', 'hidden'));
+  }
+
   function setSvgField(doc, id, value) {
     const el = doc.getElementById(id);
     if (!el) return;
@@ -617,8 +637,9 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
     const { nameKo, nameEn, dateStr } = fieldValues();
     const { nameKo: idKo, nameEn: idEn, date: idDate } = SVG_TEMPLATE.textIds;
     setSvgField(doc, idKo, nameKo);
-    setSvgField(doc, idEn, nameEn);
-    setSvgField(doc, idDate, dateStr);
+    /* 영문·입사일: SVG 이미지 렌더 시 볼드 미적용 → Canvas에서 Pretendard 700으로 그림 */
+    hideSvgField(doc, idEn);
+    hideSvgField(doc, idDate);
 
     const { x, y, w, h } = SVG_TEMPLATE.print;
     svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
@@ -731,9 +752,36 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
       ctx.restore();
     }
 
-    /* 2. SVG 오버레이 (텍스트·디자인 — Illustrator 스타일 유지) */
+    /* 2. SVG 오버레이 (한글·로고 등) */
     if (overlayOffscreen) {
       ctx.drawImage(overlayOffscreen, 0, 0);
+    }
+
+    /* 3. 영문 이름·입사일 — Pretendard Bold (페이지 CDN) */
+    drawCardBoldText();
+  }
+
+  function drawCardBoldText() {
+    const { nameEn, dateStr } = fieldValues();
+    const L = SVG_TEMPLATE.textLayout;
+
+    ctx.fillStyle = '#231815';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+
+    if (nameEn) {
+      const t = L.nameEn;
+      const fs = t.size * S;
+      ctx.font = `700 ${fs}px Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif`;
+      if ('letterSpacing' in ctx) ctx.letterSpacing = `${t.letterSpacing}em`;
+      ctx.fillText(nameEn, t.x * S, t.y * S);
+    }
+    if (dateStr) {
+      const t = L.date;
+      const fs = t.size * S;
+      ctx.font = `700 ${fs}px Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif`;
+      if ('letterSpacing' in ctx) ctx.letterSpacing = `${t.letterSpacing}em`;
+      ctx.fillText(dateStr, t.x * S, t.y * S);
     }
   }
 
