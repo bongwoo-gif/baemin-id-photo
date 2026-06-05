@@ -296,7 +296,7 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
       <div id="lookup-result" hidden>
         <div class="field">
           <label>영문 이름</label>
-          <input type="text" id="name-en" readonly tabindex="-1">
+          <input type="text" id="name-en">
         </div>
         <div class="field">
           <label>입사일</label>
@@ -419,7 +419,7 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
   const SVG_TEMPLATE = {
     file: '자동화템플릿_기본형 사원증.svg',
     print: { x: 131.465, y: 24.021, w: 153.071, h: 243.78 },
-    circle: { cx: 207.139, cy: 169.814, r: 51.024 },
+    circle: { cx: 207.439, cy: 169.714, r: 51.024 },
     textIds: { nameKo: 'namekr', nameEn: 'nameen', date: 'date' },
     /* 인쇄영역 기준 좌표·크기 (SVG text transform과 동일) */
     textLayout: {
@@ -482,6 +482,34 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
     document.getElementById('lookup-result').hidden = !showResult;
   }
 
+  function formatEnglishName(value) {
+    return value
+      .trim()
+      .replace(/\s+/g, ' ')
+      .split(' ')
+      .filter(Boolean)
+      .map(word => {
+        const lower = word.toLowerCase();
+        return lower.charAt(0).toUpperCase() + lower.slice(1);
+      })
+      .join(' ');
+  }
+
+  function applyEnglishNameFormat() {
+    const el = document.getElementById('name-en');
+    if (!el) return;
+    const formatted = formatEnglishName(el.value);
+    if (!formatted) return;
+    if (formatted === el.value) return;
+    el.value = formatted;
+    if (profile.verified) {
+      profile.nameEn = formatted;
+      requestDraw();
+    }
+  }
+
+  document.getElementById('name-en').addEventListener('blur', applyEnglishNameFormat);
+
   function profileInputs() {
     const nameKo = (document.getElementById('name-ko')?.value || '').trim();
     const birth  = (document.getElementById('birth-date')?.value || '').replace(/\D/g, '').slice(0, 6);
@@ -525,7 +553,7 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
       if (!res.ok) throw new Error('lookup failed');
 
       const data = await res.json();
-      const nameEn = (data['영문이름'] || '').trim();
+      const nameEn = formatEnglishName(data['영문이름'] || '');
       const hireDate = normalizeIsoDate(data['입사일자'] || '');
       const empId = String(data['우아한인사 사번'] || '').trim();
 
