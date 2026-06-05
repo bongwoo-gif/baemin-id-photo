@@ -159,6 +159,8 @@ main { max-width: 1100px; margin: 0 auto; padding: 28px 16px 60px; }
 input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height: 4px; }
 .zoom-pct { font-size: 11px; color: #555; width: 34px; text-align: right; }
 .card-actions { display: flex; gap: 10px; margin-top: 10px; }
+.bg-toggle-row { margin-top: 12px; width: 100%; max-width: 596px; }
+.bg-toggle-btn { width: 100%; }
 .card-btn {
   flex: 1; padding: 8px 14px; border: 1.5px solid var(--g2);
   border-radius: 8px; background: #fff; font-size: 12px;
@@ -325,6 +327,9 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
         <button class="card-btn" onclick="rotatePhoto()">↺ 회전</button>
         <button class="card-btn" onclick="clearPhoto()">✕ 삭제</button>
       </div>
+      <div class="bg-toggle-row">
+        <button type="button" class="btn btn-outline bg-toggle-btn" id="bg-toggle-btn" onclick="togglePreviewBackground()">민트 배경 보기</button>
+      </div>
     </div>
 
     <!-- RIGHT -->
@@ -415,11 +420,14 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
 <script>
 (function () {
 
-  /* ─── SVG 템플릿 (자동화템플릿_기본형 사원증.svg) ─────────── */
+  /* ─── SVG 템플릿 ─────────────────────────────────────────── */
+  const SVG_FILES = {
+    white: '자동화템플릿_기본형 사원증.svg',
+    mint:  '자동화템플릿_기본형 사원증_mint.svg',
+  };
   const SVG_TEMPLATE = {
-    file: '자동화템플릿_기본형 사원증.svg',
     print: { x: 131.465, y: 24.021, w: 153.071, h: 243.78 },
-    circle: { cx: 207.439, cy: 169.714, r: 51.024 },
+    circle: { cx: 207.139, cy: 169.814, r: 51.024 },
     textIds: { nameKo: 'namekr', nameEn: 'nameen', date: 'date' },
     /* 인쇄영역 기준 좌표·크기 (SVG text transform과 동일) */
     textLayout: {
@@ -437,13 +445,12 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
   const S = SVG_TEMPLATE.renderScale;
   let W = Math.round(PW * S);
   let H = Math.round(PH * S);
-  let overlayImg        = null;
   let overlayOffscreen  = null;
-  let overlayObjectUrl  = null;
-  let svgTemplateRaw    = null;
+  let svgRawCache       = {};
+  let overlayCache      = {};
+  let previewMintBg     = false;
   let _faceApiReady     = null;
   let rebuildTimer      = null;
-  let rebuildGen        = 0;
   let lookupTimer       = null;
   let lookupGen         = 0;
   let lastLookupKey     = '';
@@ -460,12 +467,38 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
   /* ─── SVG 템플릿 로드·텍스트 치환 ───────────────────────── */
-  async function getSvgTemplateRaw() {
-    if (svgTemplateRaw) return svgTemplateRaw;
-    const res = await fetch(encodeURI(SVG_TEMPLATE.file));
+  function getPreviewSvgFile() {
+    return previewMintBg ? SVG_FILES.mint : SVG_FILES.white;
+  }
+
+  function invalidateOverlayCache() {
+    overlayCache = {};
+    overlayOffscreen = null;
+  }
+
+  function updateBgToggleLabel() {
+    const btn = document.getElementById('bg-toggle-btn');
+    if (!btn) return;
+    btn.textContent = previewMintBg ? '흰색 배경 보기' : '민트 배경 보기';
+  }
+
+  window.togglePreviewBackground = async function () {
+    previewMintBg = !previewMintBg;
+    updateBgToggleLabel();
+    try {
+      overlayOffscreen = await ensureOverlayForFile(getPreviewSvgFile());
+      drawCard();
+    } catch (e) {
+      console.error('[overlay]', e);
+    }
+  };
+
+  async function getSvgTemplateRaw(file) {
+    if (svgRawCache[file]) return svgRawCache[file];
+    const res = await fetch(encodeURI(file));
     if (!res.ok) throw new Error('SVG load failed: ' + res.status);
-    svgTemplateRaw = await res.text();
-    return svgTemplateRaw;
+    svgRawCache[file] = await res.text();
+    return svgRawCache[file];
   }
 
   function fieldValues() {
@@ -652,8 +685,8 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
     setSvgTextNode(primary, value, doc);
   }
 
-  async function buildCardSvgBlob() {
-    const raw = await getSvgTemplateRaw();
+  async function buildCardSvgBlob(templateFile) {
+    const raw = await getSvgTemplateRaw(templateFile);
     const doc = new DOMParser().parseFromString(raw, 'image/svg+xml');
     const svg = doc.documentElement;
 
@@ -677,44 +710,42 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
     return new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' });
   }
 
-  function buildOverlayOffscreen() {
-    overlayOffscreen = document.createElement('canvas');
-    overlayOffscreen.width  = W;
-    overlayOffscreen.height = H;
-    const oc = overlayOffscreen.getContext('2d');
-    oc.drawImage(overlayImg, 0, 0, W, H);
-    oc.globalCompositeOperation = 'destination-out';
-    oc.beginPath();
-    oc.arc(circle.cx, circle.cy, circle.r, 0, Math.PI * 2);
-    oc.fill();
-  }
+  async function ensureOverlayForFile(templateFile) {
+    if (overlayCache[templateFile]) return overlayCache[templateFile];
 
-  function loadOverlayImage(url) {
-    return new Promise((resolve, reject) => {
-      if (!overlayImg) overlayImg = new Image();
-      overlayImg.onload = () => resolve();
-      overlayImg.onerror = () => reject(new Error('SVG render failed'));
-      overlayImg.src = url;
+    const blob = await buildCardSvgBlob(templateFile);
+    const url  = URL.createObjectURL(blob);
+    const img  = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('SVG render failed'));
+      img.src = url;
     });
+    URL.revokeObjectURL(url);
+
+    const oc = document.createElement('canvas');
+    oc.width  = W;
+    oc.height = H;
+    const octx = oc.getContext('2d');
+    octx.drawImage(img, 0, 0, W, H);
+    octx.globalCompositeOperation = 'destination-out';
+    octx.beginPath();
+    octx.arc(circle.cx, circle.cy, circle.r, 0, Math.PI * 2);
+    octx.fill();
+
+    overlayCache[templateFile] = oc;
+    return oc;
   }
 
   async function rebuildOverlay() {
-    const gen = ++rebuildGen;
-    const blob = await buildCardSvgBlob();
-    const url  = URL.createObjectURL(blob);
-    await loadOverlayImage(url);
-    if (gen !== rebuildGen) {
-      URL.revokeObjectURL(url);
-      return;
-    }
-    if (overlayObjectUrl) URL.revokeObjectURL(overlayObjectUrl);
-    overlayObjectUrl = url;
-    buildOverlayOffscreen();
+    invalidateOverlayCache();
+    overlayOffscreen = await ensureOverlayForFile(getPreviewSvgFile());
   }
 
   async function initOverlay() {
     canvas.width  = W;
     canvas.height = H;
+    updateBgToggleLabel();
     try {
       await rebuildOverlay();
       drawCard();
@@ -758,59 +789,61 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
   }
 
   /* ─── drawCard ───────────────────────────────────────────── */
-  function drawCard() {
-    ctx.clearRect(0, 0, W, H);
-
+  function drawPhotoOn(targetCtx) {
     const { cx: pcx, cy: pcy, r: pr } = circle;
-
-    /* 1. 사진 (원형 클리핑) */
-    if (photo.img) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(pcx, pcy, pr, 0, Math.PI * 2);
-      ctx.clip();
-      const iw = photo.img.naturalWidth;
-      const ih = photo.img.naturalHeight;
-      const s  = photo.scale;
-      ctx.save();
-      ctx.translate(pcx + photo.x, pcy + photo.y);
-      ctx.rotate(photo.rotation * Math.PI / 180);
-      ctx.drawImage(photo.img, -iw * s / 2, -ih * s / 2, iw * s, ih * s);
-      ctx.restore();
-      ctx.restore();
-    }
-
-    /* 2. SVG 오버레이 (한글·로고 등) */
-    if (overlayOffscreen) {
-      ctx.drawImage(overlayOffscreen, 0, 0);
-    }
-
-    /* 3. 영문 이름·입사일 — Pretendard Bold (페이지 CDN) */
-    drawCardBoldText();
+    if (!photo.img) return;
+    targetCtx.save();
+    targetCtx.beginPath();
+    targetCtx.arc(pcx, pcy, pr, 0, Math.PI * 2);
+    targetCtx.clip();
+    const iw = photo.img.naturalWidth;
+    const ih = photo.img.naturalHeight;
+    const s  = photo.scale;
+    targetCtx.save();
+    targetCtx.translate(pcx + photo.x, pcy + photo.y);
+    targetCtx.rotate(photo.rotation * Math.PI / 180);
+    targetCtx.drawImage(photo.img, -iw * s / 2, -ih * s / 2, iw * s, ih * s);
+    targetCtx.restore();
+    targetCtx.restore();
   }
 
-  function drawCardBoldText() {
+  function drawCardBoldTextOn(targetCtx) {
     const { nameEn, dateStr } = fieldValues();
     const L = SVG_TEMPLATE.textLayout;
 
-    ctx.fillStyle = '#231815';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
+    targetCtx.fillStyle = '#231815';
+    targetCtx.textAlign = 'left';
+    targetCtx.textBaseline = 'alphabetic';
 
     if (nameEn) {
       const t = L.nameEn;
       const fs = t.size * S;
-      ctx.font = `700 ${fs}px Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif`;
-      if ('letterSpacing' in ctx) ctx.letterSpacing = `${t.letterSpacing}em`;
-      ctx.fillText(nameEn, t.x * S, t.y * S);
+      targetCtx.font = `700 ${fs}px Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif`;
+      if ('letterSpacing' in targetCtx) targetCtx.letterSpacing = `${t.letterSpacing}em`;
+      targetCtx.fillText(nameEn, t.x * S, t.y * S);
     }
     if (dateStr) {
       const t = L.date;
       const fs = t.size * S;
-      ctx.font = `700 ${fs}px Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif`;
-      if ('letterSpacing' in ctx) ctx.letterSpacing = `${t.letterSpacing}em`;
-      ctx.fillText(dateStr, t.x * S, t.y * S);
+      targetCtx.font = `700 ${fs}px Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif`;
+      if ('letterSpacing' in targetCtx) targetCtx.letterSpacing = `${t.letterSpacing}em`;
+      targetCtx.fillText(dateStr, t.x * S, t.y * S);
     }
+  }
+
+  async function drawCardToCanvas(targetCtx, templateFile) {
+    targetCtx.clearRect(0, 0, W, H);
+    drawPhotoOn(targetCtx);
+    const overlay = await ensureOverlayForFile(templateFile);
+    targetCtx.drawImage(overlay, 0, 0);
+    drawCardBoldTextOn(targetCtx);
+  }
+
+  function drawCard() {
+    ctx.clearRect(0, 0, W, H);
+    drawPhotoOn(ctx);
+    if (overlayOffscreen) ctx.drawImage(overlayOffscreen, 0, 0);
+    drawCardBoldTextOn(ctx);
   }
 
   /* YYMMDD(741001) → 시트 형식 YYYY-MM-DD(1974-10-01) */
@@ -1047,8 +1080,10 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
     if (n === 3) {
       clearTimeout(rebuildTimer);
       try {
-        await rebuildOverlay();
-        drawCard();
+        const fc = document.getElementById('final-canvas');
+        fc.width  = W;
+        fc.height = H;
+        await drawCardToCanvas(fc.getContext('2d'), SVG_FILES.white);
       } catch (e) {
         console.error('[overlay]', e);
       }
@@ -1058,10 +1093,6 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
   };
 
   function syncStep3() {
-    const fc = document.getElementById('final-canvas');
-    fc.width  = W; fc.height = H;
-    fc.getContext('2d').drawImage(canvas, 0, 0);
-
     document.getElementById('info-ko').textContent    = document.getElementById('name-ko').value || '-';
     document.getElementById('info-en').textContent    = profile.verified ? profile.nameEn : '-';
     document.getElementById('info-emp').textContent   = profile.verified && profile.empId ? profile.empId : '-';
@@ -1075,7 +1106,7 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
   }
 
   /* ─── Submit (POST webhook) ─────────────────────────────── */
-  window.downloadCard = function () {
+  window.downloadCard = async function () {
     const nameKo = document.getElementById('name-ko').value.trim();
     const birth = document.getElementById('birth-date').value.trim() || '';
 
@@ -1094,10 +1125,10 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
       return;
     }
 
-    /* re-render at full overlay resolution */
+    /* 제출용: 항상 흰색 배경 SVG */
     const out  = document.createElement('canvas');
     out.width  = W; out.height = H;
-    out.getContext('2d').drawImage(canvas, 0, 0);
+    await drawCardToCanvas(out.getContext('2d'), SVG_FILES.white);
 
     out.toBlob(async blob => {
       if (!blob) {
