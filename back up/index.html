@@ -98,12 +98,6 @@ main { max-width: 1100px; margin: 0 auto; padding: 28px 16px 60px; }
 }
 @media(max-width:900px){ .three-col { grid-template-columns: 1fr 1fr; } }
 @media(max-width:640px){ .two-col, .three-col { grid-template-columns: 1fr; } }
-@media(max-width:640px){
-  main { padding: 16px 12px 80px; }
-  .three-col > .box:nth-child(1) { order: 2; }
-  .three-col > .box:nth-child(2) { order: 1; }
-  .three-col > .box:nth-child(3) { order: 3; }
-}
 
 /* STEP 1 */
 .s1-title { font-size: 22px; font-weight: 800; line-height: 1.4; margin-bottom: 12px; }
@@ -128,9 +122,14 @@ main { max-width: 1100px; margin: 0 auto; padding: 28px 16px 60px; }
   width: 100%; border: 1.5px solid var(--g2); border-radius: 8px;
   padding: 9px 11px; font-size: 14px; outline: none; transition: border-color .2s;
 }
-@media(max-width:640px){ .field input { font-size: 16px; } }
 .field input:focus { border-color: var(--mint); }
+.field input[readonly] { background: var(--g1); color: #555; cursor: default; }
 .s2-notice { font-size: 11px; color: var(--g3); line-height: 1.5; }
+.lookup-msg { font-size: 12px; text-align: center; margin: 10px 0 4px; min-height: 18px; }
+.lookup-error { color: var(--red); font-weight: 600; }
+.lookup-loading { color: var(--g4); }
+#lookup-result { margin-top: 4px; }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
 
 /* STEP 2 – CENTER (canvas) */
 .canvas-panel {
@@ -158,14 +157,12 @@ main { max-width: 1100px; margin: 0 auto; padding: 28px 16px 60px; }
 }
 .zoom-row label { font-size: 11px; color: var(--g4); white-space: nowrap; }
 input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height: 4px; }
-@media(max-width:640px){ input[type=range] { height: 8px; } }
 .zoom-pct { font-size: 11px; color: #555; width: 34px; text-align: right; }
 .card-actions { display: flex; gap: 10px; margin-top: 10px; }
 .card-btn {
   flex: 1; padding: 8px 14px; border: 1.5px solid var(--g2);
   border-radius: 8px; background: #fff; font-size: 12px;
   cursor: pointer; color: #444; font-weight: 500; transition: background .15s;
-  min-height: 44px;
 }
 .card-btn:hover { background: var(--g1); }
 
@@ -207,17 +204,12 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
   font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
 }
 .submit-area { margin-top: 24px; }
-.s3-notice {
-  font-size: 14px; color: var(--g4); text-align: center; line-height: 1.6;
-  background: var(--g1); border-radius: 12px; padding: 16px;
-}
 
 /* BUTTONS */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   border: none; border-radius: 10px; font-size: 14px; font-weight: 700;
   cursor: pointer; transition: opacity .15s, transform .1s;
-  min-height: 44px;
 }
 .btn:active { transform: scale(.98); }
 .btn-mint { background: var(--mint); color: #fff; padding: 13px 22px; }
@@ -293,13 +285,29 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
 
       <div class="field">
         <label>이름 (한글)</label>
-        <input type="text" id="name-ko" placeholder="홍길동" oninput="onNameKoInput()">
+        <input type="text" id="name-ko" placeholder="홍길동" oninput="onProfileInputChange()">
       </div>
       <div class="field">
-        <label>영문 이름</label>
-        <input type="text" id="name-en" placeholder="Gil Dong Hong">
+        <label>생년월일</label>
+        <input type="text" id="birth-date" placeholder="YYMMDD" maxlength="6" oninput="onProfileInputChange()">
       </div>
-      <p class="s2-notice">한글 이름을 입력하면 영문 이름이 자동으로 채워집니다. 입사일은 오늘 날짜로 표시됩니다.</p>
+      <p id="lookup-loading" class="lookup-msg lookup-loading" hidden>조회 중...</p>
+      <p id="lookup-error" class="lookup-msg lookup-error" hidden>일치하는 정보가 없습니다</p>
+      <div id="lookup-result" hidden>
+        <div class="field">
+          <label>영문 이름</label>
+          <input type="text" id="name-en">
+        </div>
+        <div class="field">
+          <label>입사일</label>
+          <input type="text" id="hire-date-display" readonly tabindex="-1">
+        </div>
+        <div class="field">
+          <label>사번</label>
+          <input type="text" id="emp-id-display" readonly tabindex="-1">
+        </div>
+      </div>
+      <p class="s2-notice">생년월일은 6자리(예: 741001)로 입력하면 시트 날짜(1974-10-01)와 자동 매칭됩니다. 입사일은 사원증에 6 JAN 2026 형식으로 표시됩니다.</p>
     </div>
 
     <!-- CENTER -->
@@ -370,8 +378,16 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
           <span class="info-value" id="info-en">-</span>
         </div>
         <div class="info-item">
+          <span class="info-label">사번</span>
+          <span class="info-value" id="info-emp">-</span>
+        </div>
+        <div class="info-item">
           <span class="info-label">입사일</span>
           <span class="info-value" id="info-date">-</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">생년월일</span>
+          <span class="info-value" id="info-birth">-</span>
         </div>
       </div>
     </div>
@@ -386,7 +402,7 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
     </div>
   </div>
   <div class="submit-area">
-    <p class="s3-notice">마음에 드는 사진이 정해지면 담당자가 안내한 구글폼으로 제출해주세요.</p>
+    <button class="btn btn-mint btn-full btn-lg" onclick="downloadCard()">▶ 사원증 사진 제출하기</button>
   </div>
   <div class="nav-row">
     <button class="btn btn-outline" onclick="goStep(2)">← 이전</button>
@@ -412,13 +428,11 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
     },
     renderScale: 6,
   };
+  const WEBHOOK_URL = 'https://ex-n8n.woowahan.com/webhook/id-photo';
+  const LOOKUP_URL = 'https://ex-n8n.woowahan.com/webhook/lookup-member';
 
   /* ─── State ──────────────────────────────────────────────── */
-  const profile = { verified: false, hireDate: '' };
-  const today = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  profile.hireDate = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
-  profile.verified = true;
+  const profile = { verified: false, nameEn: '', hireDate: '', empId: '' };
   const { w: PW, h: PH } = SVG_TEMPLATE.print;
   const S = SVG_TEMPLATE.renderScale;
   let W = Math.round(PW * S);
@@ -430,6 +444,9 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
   let _faceApiReady     = null;
   let rebuildTimer      = null;
   let rebuildGen        = 0;
+  let lookupTimer       = null;
+  let lookupGen         = 0;
+  let lastLookupKey     = '';
   const circle = {
     cx: (SVG_TEMPLATE.circle.cx - SVG_TEMPLATE.print.x) * S,
     cy: (SVG_TEMPLATE.circle.cy - SVG_TEMPLATE.print.y) * S,
@@ -454,9 +471,15 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
   function fieldValues() {
     return {
       nameKo:  (document.getElementById('name-ko')?.value || '').trim(),
-      nameEn:  (document.getElementById('name-en')?.value || '').trim(),
+      nameEn:  profile.verified ? profile.nameEn : '',
       dateStr: profile.verified ? fmtDate(profile.hireDate) : '',
     };
+  }
+
+  function setLookupUi({ loading = false, error = false, showResult = false } = {}) {
+    document.getElementById('lookup-loading').hidden = !loading;
+    document.getElementById('lookup-error').hidden = !error;
+    document.getElementById('lookup-result').hidden = !showResult;
   }
 
   function formatEnglishName(value) {
@@ -479,67 +502,115 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
     if (!formatted) return;
     if (formatted === el.value) return;
     el.value = formatted;
-    requestDraw();
+    if (profile.verified) {
+      profile.nameEn = formatted;
+      requestDraw();
+    }
   }
 
-  function romanizeKoreanName(ko) {
-    /* 국립국어원 로마자 표기법 — 초성/중성/종성 조합 */
-    const CHO  = ['g','kk','n','d','tt','r','m','b','pp','s','ss','','j','jj','ch','k','t','p','h'];
-    const JUNG = ['a','ae','ya','yae','eo','e','yeo','ye','o','wa','wae','oe','yo','u','wo','we','wi','yu','eu','ui','i'];
-    const JONG = ['','k','k','kt','n','nt','nh','t','l','lk','lm','lp','lt','lt','lp','lh','m','p','pt','t','t','ng','t','t','k','t','p','h'];
-    /* 성씨 — 실무 표기 우선 (없으면 표기법 자동 변환) */
-    const SURNAME = {
-      '김':'Kim','이':'Lee','박':'Park','최':'Choi','정':'Jung','강':'Kang','조':'Jo','윤':'Yoon',
-      '장':'Jang','임':'Lim','한':'Han','오':'Oh','서':'Seo','신':'Shin','권':'Kwon','황':'Hwang',
-      '안':'Ahn','송':'Song','전':'Jeon','홍':'Hong','고':'Ko','문':'Moon','양':'Yang','손':'Son',
-      '배':'Bae','백':'Baek','허':'Heo','유':'Yoo','남':'Nam','심':'Shim','노':'Noh','하':'Ha',
-      '곽':'Kwak','성':'Sung','차':'Cha','주':'Joo','우':'Woo','구':'Koo','민':'Min','류':'Ryu',
-      '나':'Na','진':'Jin','엄':'Eom','원':'Won','천':'Cheon','방':'Bang','공':'Gong','변':'Byun',
-      '여':'Yeo','추':'Chu','도':'Do','소':'So','석':'Seok','선':'Sun','설':'Seol','마':'Ma',
-      '표':'Pyo','명':'Myung','반':'Ban','라':'Ra','복':'Bok','탁':'Tak','국':'Kook','편':'Pyeon',
-      '봉':'Bong',
-    };
-
-    function isHangul(ch) {
-      const c = ch.charCodeAt(0);
-      return c >= 0xAC00 && c <= 0xD7A3;
-    }
-    function decompose(ch) {
-      const n = ch.charCodeAt(0) - 0xAC00;
-      return { cho: Math.floor(n / 588), jung: Math.floor((n % 588) / 28), jong: n % 28 };
-    }
-    function romanizeSyllable(cho, jung, jong) {
-      return CHO[cho] + JUNG[jung] + JONG[jong];
-    }
-    function titleCase(s) {
-      return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '';
-    }
-
-    const name = (ko || '').trim();
-    const syllables = [...name].filter(isHangul);
-    if (!syllables.length) return '';
-
-    const surnameChar = syllables[0];
-    const givenChars  = syllables.slice(1);
-    const s = decompose(surnameChar);
-    const surname = SURNAME[surnameChar] || titleCase(romanizeSyllable(s.cho, s.jung, s.jong));
-
-    if (!givenChars.length) return surname;
-
-    const given = givenChars.map(ch => {
-      const { cho, jung, jong } = decompose(ch);
-      return romanizeSyllable(cho, jung, jong);
-    }).join('');
-
-    return `${titleCase(given)} ${surname}`;
-  }
-
-  document.getElementById('name-en').addEventListener('input', requestDraw);
   document.getElementById('name-en').addEventListener('blur', applyEnglishNameFormat);
 
-  window.onNameKoInput = function () {
-    document.getElementById('name-en').value = romanizeKoreanName(document.getElementById('name-ko').value);
+  function profileInputs() {
+    const nameKo = (document.getElementById('name-ko')?.value || '').trim();
+    const birth  = (document.getElementById('birth-date')?.value || '').replace(/\D/g, '').slice(0, 6);
+    return { nameKo, birth };
+  }
+
+  function clearVerifiedProfile() {
+    profile.verified = false;
+    profile.nameEn = '';
+    profile.hireDate = '';
+    profile.empId = '';
+    document.getElementById('name-en').value = '';
+    document.getElementById('hire-date-display').value = '';
+    document.getElementById('emp-id-display').value = '';
+    setLookupUi({ showResult: false, error: false, loading: false });
     requestDraw();
+  }
+
+  async function runAutoLookup(nameKo, birth, key) {
+    if (!LOOKUP_URL) {
+      console.warn('[lookup] LOOKUP_URL is not set');
+      return;
+    }
+
+    const gen = ++lookupGen;
+    setLookupUi({ loading: true, error: false, showResult: false });
+
+    try {
+      const birthIso = yymmddToIso(birth);
+      if (!birthIso) throw new Error('invalid birth date');
+
+      const res = await fetch(LOOKUP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          name_ko: nameKo,
+          birth_date: birth,
+          birth_date_iso: birthIso,
+        }),
+      });
+      if (!res.ok) throw new Error('lookup failed');
+
+      const data = await res.json();
+      const nameEn = formatEnglishName(data['영문이름'] || '');
+      const hireDate = normalizeIsoDate(data['입사일자'] || '');
+      const empId = String(data['우아한인사 사번'] || '').trim();
+
+      if (!nameEn || !hireDate) throw new Error('invalid payload');
+      if (gen !== lookupGen) return;
+
+      lastLookupKey = key;
+      profile.verified = true;
+      profile.nameEn = nameEn;
+      profile.hireDate = hireDate;
+      profile.empId = empId;
+
+      document.getElementById('name-en').value = nameEn;
+      document.getElementById('hire-date-display').value = fmtDate(hireDate) || hireDate;
+      document.getElementById('emp-id-display').value = empId;
+
+      setLookupUi({ showResult: true });
+      requestDraw();
+    } catch (e) {
+      if (gen !== lookupGen) return;
+      console.error('[lookup]', e);
+      lastLookupKey = '';
+      profile.verified = false;
+      profile.nameEn = '';
+      profile.hireDate = '';
+      profile.empId = '';
+      document.getElementById('name-en').value = '';
+      document.getElementById('hire-date-display').value = '';
+      document.getElementById('emp-id-display').value = '';
+      setLookupUi({ loading: false, error: true, showResult: false });
+      requestDraw();
+    } finally {
+      if (gen === lookupGen) document.getElementById('lookup-loading').hidden = true;
+    }
+  }
+
+  window.onProfileInputChange = function () {
+    requestDraw();
+
+    clearTimeout(lookupTimer);
+    const { nameKo, birth } = profileInputs();
+
+    if (!nameKo || birth.length !== 6) {
+      lookupGen++;
+      lastLookupKey = '';
+      if (profile.verified || !document.getElementById('lookup-error').hidden) {
+        clearVerifiedProfile();
+      } else {
+        setLookupUi({ loading: false, error: false, showResult: false });
+      }
+      return;
+    }
+
+    const key = `${nameKo}|${birth}`;
+    if (key === lastLookupKey && profile.verified) return;
+
+    lookupTimer = setTimeout(() => runAutoLookup(nameKo, birth, key), 400);
   };
 
   function setSvgTextNode(textEl, value, doc) {
@@ -986,10 +1057,83 @@ input[type=range] { flex: 1; accent-color: var(--mint); cursor: pointer; height:
     fc.height = H;
     fc.getContext('2d').drawImage(canvas, 0, 0);
 
-    document.getElementById('info-ko').textContent   = document.getElementById('name-ko').value || '-';
-    document.getElementById('info-en').textContent   = document.getElementById('name-en').value || '-';
-    document.getElementById('info-date').textContent = fmtDate(profile.hireDate) || '-';
+    document.getElementById('info-ko').textContent    = document.getElementById('name-ko').value || '-';
+    document.getElementById('info-en').textContent    = profile.verified ? profile.nameEn : '-';
+    document.getElementById('info-emp').textContent   = profile.verified && profile.empId ? profile.empId : '-';
+    document.getElementById('info-date').textContent  = profile.verified ? (fmtDate(profile.hireDate) || '-') : '-';
+    document.getElementById('info-birth').textContent = document.getElementById('birth-date').value || '-';
   }
+
+  function sanitizeFilePart(v, fallback) {
+    const s = (v || '').trim().replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '');
+    return s || fallback;
+  }
+
+  /* ─── Submit (POST webhook) ─────────────────────────────── */
+  window.downloadCard = async function () {
+    const nameKo = document.getElementById('name-ko').value.trim();
+    const birth = document.getElementById('birth-date').value.trim() || '';
+
+    if (!profile.verified) {
+      alert('이름·생년월일 입력 후 입사 정보가 조회되어야 제출할 수 있습니다.');
+      return;
+    }
+
+    const nameEn = profile.nameEn;
+    const empId = profile.empId;
+    const hireDate = profile.hireDate;
+    const fname = `${sanitizeFilePart(nameKo, 'name')}_${sanitizeFilePart(empId || birth, 'id')}.png`;
+
+    if (!WEBHOOK_URL) {
+      alert('Webhook URL이 설정되지 않았습니다. 코드의 WEBHOOK_URL 값을 입력해주세요.');
+      return;
+    }
+
+    const out  = document.createElement('canvas');
+    out.width  = W; out.height = H;
+    out.getContext('2d').drawImage(canvas, 0, 0);
+
+    out.toBlob(async blob => {
+      if (!blob) {
+        alert('이미지 생성에 실패했습니다. 다시 시도해주세요.');
+        return;
+      }
+      const dataUrl = await new Promise(resolve => {
+        const rd = new FileReader();
+        rd.onload = e => resolve(e.target.result);
+        rd.readAsDataURL(blob);
+      });
+
+      const birthIso = yymmddToIso(birth);
+      const payload = {
+        file_name: fname,
+        mime_type: 'image/png',
+        image_base64: String(dataUrl).split(',')[1],
+        submitted_at: new Date().toISOString(),
+        name_ko: nameKo,
+        name_en: nameEn,
+        emp_id: empId,
+        hire_date: hireDate,
+        hire_date_display: fmtDate(hireDate),
+        birth_date: birth,
+        birth_date_iso: birthIso,
+      };
+
+      try {
+        const res = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok && res.type !== 'opaque') throw new Error(`Webhook failed: ${res.status}`);
+        alert('제출이 완료되었습니다.');
+      } catch (e) {
+        console.error(e);
+        alert('제출에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      }
+    }, 'image/png');
+  };
 
 })();
 </script>
